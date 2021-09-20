@@ -1,0 +1,12 @@
+---
+# defaults file for cni
+
+cni_name: cni
+cni_checksum: sha256:5238fbb2767cbf6aae736ad97a7aa29167525dcd405196dfbc064672a730d3cf
+cni_version: v1.0.1
+cni_version_success_string: "CNI bridge plugin {{ cni_version }}"
+cni_symlink_dir: /opt/cni
+cni_version_cmd: "{{ cni_symlink_dir }}/bin/bridge"
+cni_downloaded_file: "cni-plugins-linux-amd64-{{ cni_version }}.tgz"
+cni_url: "https://github.com/containernetworking/plugins/releases/download/{{ cni_version }}/{{ cni_downloaded_file }}"
+cni_extracted_path: "*"

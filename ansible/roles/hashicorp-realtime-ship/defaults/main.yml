@@ -1,0 +1,8 @@
+# Location on realtime machine where nomad jobs will store persistent data
+jobs_data: /var/local/nomad/jobs_data
+# Location on realtime machine where nomad jobs will store persistent data
+# that should not go on a shared volume for consistency guarantees (e.g. minio)
+# This should not point to a shared volume.
+local_jobs_data: /var/local/nomad/local_jobs_data
+samba_mount_point: /mnt/seaflow
+realtime_user: ubuntu

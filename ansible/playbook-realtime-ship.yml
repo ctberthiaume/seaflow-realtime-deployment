@@ -1,0 +1,70 @@
+- hosts: all
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: "Install apt packages"
+      apt:
+        state: present
+        name:
+          - apt-transport-https
+          - autofs
+          - bmon
+          - build-essential
+          - ca-certificates
+          - cifs-utils
+          - curl
+          - fio
+          - git
+          - gnupg-agent
+          - htop
+          - hwloc
+          - inotify-tools
+          - iotop
+          - jq
+          - lm-sensors
+          - net-tools
+          - nmap
+          - parallel
+          - pigz
+          - postgresql-client-12
+          - python3-pip
+          - python3-venv
+          - rsync
+          - samba
+          - screen
+          - smbclient
+          - software-properties-common
+          - sqlite3
+          - sshpass
+          - tree
+          - vim
+          - wget
+          - zip
+        update_cache: yes
+        cache_valid_time: 1800
+
+- hosts: all
+  become: yes
+  become_method: sudo
+  roles:
+    - apt-disable-unattended-upgrade
+
+- hosts: all
+  become: yes
+  become_method: sudo
+  roles:
+    - tsdata
+    - seaflow-transfer
+    - cruisemic
+    - seaflog
+    - udpcombadge
+    - seaflowpy
+    - popcycle
+
+- hosts: all
+  become: yes
+  become_method: sudo
+  roles:
+    - consul
+    - nomad
+    - hashicorp-realtime-ship

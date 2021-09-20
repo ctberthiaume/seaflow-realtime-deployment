@@ -17,21 +17,3 @@
     repository: "{{ grafana_image }}:local"
     force_tag: yes
     source: local
-
-# No simple way to confirm version, comment out for now.
-# - name: "grafana : Get version"
-#   command: "docker run --rm {{ grafana_image }}:local grafana version"
-#   register: grafana_version_cmd_result
-#   check_mode: no
-#   changed_when: False
-
-# - debug:
-#     msg: "stdout={{ grafana_version_cmd_result.stdout }}"
-
-# - debug:
-#     msg: "stderr={{ grafana_version_cmd_result.stderr }}"
-
-# - name: "grafana : Confirm version is correct"
-#   assert:
-#     that:
-#       - grafana_version in grafana_version_cmd_result.stdout or grafana_version in grafana_version_cmd_result.stderr

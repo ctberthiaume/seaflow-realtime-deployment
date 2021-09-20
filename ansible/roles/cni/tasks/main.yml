@@ -1,0 +1,16 @@
+---
+# tasks file for CNI brdige plugin
+
+- name: Import executable_downloader role
+  import_role:
+    name: executable_downloader
+  vars:
+    execdl_name: "{{ cni_name }}"
+    execdl_checksum: "{{ cni_checksum }}"
+    execdl_version: "{{ cni_version }}"
+    execdl_version_success_string: "{{ cni_version_success_string }}"
+    execdl_version_cmd: "{{ cni_version_cmd }}"
+    execdl_url: "{{ cni_url }}"
+    execdl_downloaded_file: "{{ cni_downloaded_file }}"
+    execdl_extracted_path: "{{ cni_extracted_path }}"
+    execdl_symlink_dir: "{{ cni_symlink_dir }}"

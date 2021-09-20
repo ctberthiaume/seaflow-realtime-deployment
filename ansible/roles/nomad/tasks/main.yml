@@ -13,6 +13,10 @@
     update_cache: yes
     cache_valid_time: 1800
 
+- name: Install CNI plugins
+  include_role:
+    name: cni
+
 - name: Create nomad directories
   become: yes
   file:
@@ -26,9 +30,9 @@
 
 - name: Override default config files
   become: yes
-  copy:
-    src: "nomad.hcl"
-    dest: "/etc/nomad.d/"
+  template:
+    src: nomad.hcl.j2
+    dest: "/etc/nomad.d/nomad.hcl"
     backup: yes
     owner: nomad
     group: nomad

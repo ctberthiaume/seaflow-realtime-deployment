@@ -1,0 +1,3 @@
+# Location on realtime machine where nomad jobs will store persistent data
+jobs_data: /var/local/nomad/jobs_data
+realtime_user: ubuntu

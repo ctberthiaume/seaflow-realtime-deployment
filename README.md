@@ -10,8 +10,8 @@ Since Ansible is a Python tool, the easiest way to install it is in a Python vir
 ```shell
 pyenv virtualenv ansible
 pyenv activate ansible
-pip install -U setuptools wheel pip  # standard new venv stuff
-pip install ansible passlib  # passlib needed on MacOS for password hashing
+pip install -U pip
+pip install ansible passlib cryptography # passlib needed on MacOS for password hashing
 
 # Now install galaxy collections
 (cd ansible && ansible-galaxy install -r requirements.yml)
@@ -27,10 +27,10 @@ vagrant plugin install vagrant-vbguest
 vagrant up
 
 # Provision the source test VM
-ansible-playbook -i ansible/inventories/vagrant.yml  -l source ansible/playbook-source.yml
+ansible-playbook -i ansible/inventories/vagrant.yml -l source ansible/playbook-source.yml
 
 # Provision the sink test VM
-ansible-playbook -i ansible/inventories/vagrant.yml  -l sink ansible/playbook-sink.yml
+ansible-playbook -i ansible/inventories/vagrant.yml  -l sink --extra-vars "realtime_user=vagrant" ansible/playbook-sink.yml
 
 # Manually Load consul state
 vagrant ssh sink
@@ -70,4 +70,38 @@ The base64 string should be around 30K in size for one set of gates.
 
 ```shell
 printf "{\n    \"key\": \"appconfig/seaflow-analysis/dbgz\",\n    \"value\": \"$(gzip -c HOT325.base.db | base64 -w 0)\"\n}\n"
+```
+
+## Update credentials on realtime VM
+
+Update the default user password, turn off password SSH access, disable root login.
+
+The secrets.yml ansible-vault encrypted file should contain the realtime_user_password ansible variable.
+
+```sh
+(cd ansible && ansible-playbook -i inventories/realtime_ship.yml --ask-vault-pass \
+  --extra-vars="@vault/secrets.yml" \
+  playbook-credentials.yml
+)
+```
+
+## Add shared folder to realtime VM
+
+Because this configuration depends on the host filesystem it isn't added when the VM is created by Packer.
+Create it after the VM has been imported to Virtualbox with `VBoxManage`.
+
+```sh
+VBoxModify sharedfolder add <vmname> --name jobs_data --hostpath=<location in host>
+(cd ansible && ansible-playbook -i inventories/realtime_ship.yml playbook-mount-share.yml)
+```
+
+## Useful VBoxManage commands
+
+```sh
+VBoxManage list vms
+VBoxManage list runningvms
+VBoxManage import <file.ova>
+VBoxManage startvm --type headless <vm-name>
+VBoxManage controlvm <vm-name> poweroff|savestate|acpipowerbutton|reset
+VBoxManage unregistervm <vm-name>  # remove stopped vm
 ```

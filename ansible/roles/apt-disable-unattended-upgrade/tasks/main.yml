@@ -1,0 +1,14 @@
+---
+
+- name: Override default unattended upgrades config files
+  become: yes
+  copy:
+    src: "{{ item }}"
+    dest: '/etc/apt/apt.conf.d/'
+    backup: yes
+    owner: root
+    group: root
+    mode: 0644
+  loop:
+    - '21auto-upgrades'
+    - '51unattended-upgrades'
