@@ -1,0 +1,28 @@
+[
+  {
+    "key": "timescaledb/POSTGRES_PASSWORD",
+    "value": "password"
+  },
+
+  {
+    "key": "grafana/GF_SECURITY_ADMIN_PASSWORD",
+    "value": "password"
+  },
+
+  {
+    "key": "minio/MINIO_ROOT_USER",
+    "value": "admin"
+  },
+  {
+    "key": "minio/MINIO_ROOT_PASSWORD",
+    "value": "password"
+  },
+  {
+    "key": "minio/MINIO_KMS_SECRET_KEY",
+    "value": "9LM6L222pKjPO6aWkUROpC82TPIoTYLcMb/xKgp/QDU="
+  },
+  {
+    "key": "minio/webhook_endpoint_port",
+    "value": "9010"
+  }
+]
