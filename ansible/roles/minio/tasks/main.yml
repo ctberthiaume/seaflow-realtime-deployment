@@ -1,8 +1,8 @@
 ---
 # tasks file for minio
 
-- name: Import executable_downloader role
-  import_role:
+- name: Include executable_downloader role
+  include_role:
     name: executable_downloader
   vars:
     execdl_name: "{{ minio_name }}"
@@ -13,3 +13,28 @@
     execdl_url: "{{ minio_url }}"
     execdl_downloaded_file: "{{ minio_downloaded_file }}"
     execdl_extracted_path: "{{ minio_extracted_path }}"
+    execdl_symlink_dir: "{{ minio_symlink_dir }}"
+
+- name: Create minio group
+  ansible.builtin.group:
+    name: minio
+    gid: 842
+    system: yes
+
+- name: Create minio user
+  ansible.builtin.user:
+    name: minio
+    group: minio
+    uid: 842
+    system: yes
+
+- name: Create minio directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: minio
+    group: minio
+  loop:
+    - "/var/lib/minio"
+    - "/var/lib/minio/data"
+    - "/var/lib/minio/events"

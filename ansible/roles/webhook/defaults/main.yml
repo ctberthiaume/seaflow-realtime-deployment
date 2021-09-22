@@ -1,0 +1,10 @@
+---
+
+webhook_name: webhook
+webhook_checksum: md5:62ab801c7337a8b83de8d6ae8d7ace81
+webhook_version: 2.8.0
+webhook_version_success_string: "{{ webhook_version }}"
+webhook_version_cmd: webhook -version
+webhook_downloaded_file: "webhook-linux-amd64.tar.gz"
+webhook_url: "https://github.com/adnanh/webhook/releases/download/{{ webhook_version }}/{{ webhook_downloaded_file }}"
+webhook_extracted_path: "webhook-linux-amd64/webhook"

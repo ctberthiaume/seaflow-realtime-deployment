@@ -45,16 +45,16 @@
 
     - debug:
         msg: "{{ dl.dest }}"
-
+ 
     - name: "{{ execdl_name }} : Extract archive"
-      when: dl.dest | splitext | last == '.zip' or dl.dest | splitext | last == '.tar.gz' or dl.dest | splitext | last == '.tgz'
+      when: dl.dest is regex('\.zip$') or dl.dest is regex('\.tar\.gz$') or dl.dest is regex('\.tgz$')
       unarchive:
         remote_src: yes
         src: "{{ dl.dest }}"
         dest: "{{ execdl_download_dir }}/{{ execdl_name }}-{{ execdl_version }}"
 
     - name: "{{ execdl_name }} : Decompress gzipped file"
-      when: dl.dest | splitext | last == '.gz'
+      when: dl.dest is regex('\.gz$') and dl.dest is not regex('\.tar\.gz$')
       shell: "gzip -dc {{ dl.dest }} > {{ dl.dest | splitext | first }}"
 
     - name: "{{ execdl_name }} : Create install directory"

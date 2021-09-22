@@ -91,7 +91,7 @@ Because this configuration depends on the host filesystem it isn't added when th
 Create it after the VM has been imported to Virtualbox with `VBoxManage`.
 
 ```sh
-VBoxModify sharedfolder add <vmname> --name jobs_data --hostpath=<location in host>
+VBoxManage sharedfolder add <vmname> --name jobs_data --hostpath=<location in host>
 (cd ansible && ansible-playbook -i inventories/realtime_ship.yml playbook-mount-share.yml)
 ```
 

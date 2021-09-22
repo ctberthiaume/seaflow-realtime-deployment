@@ -1,8 +1,3 @@
-variable "realtime_user" {
-  type = string
-  default = "ubuntu"
-}
-
 job "minio_job" {
   datacenters = ["dc1"]
 
@@ -11,32 +6,69 @@ job "minio_job" {
   group "minio_group" {
     count = 1
 
-    volume "minio_data" {
+    volume "minio" {
       type = "host"
-      source = "minio_data"
+      source = "minio"
     }
 
     network {
+      mode = "bridge"
       port "minio-api" {
         static = 9000
+        host_network = "localhost"
       }
       port "minio-console" {
         static = 9001
+        host_network = "localhost"
       }
     }
 
     service {
       name = "minio"
+      port = "minio-api"
+      check {
+        type = "http"
+        method = "GET"
+        path = "/minio/health/live"
+        port = "minio-api"
+        timeout = "10s"
+        interval = "30s"
+      }
     }
 
-    task "minio_task" {
-      driver = "exec"
+    task "wait_for_webhook" {
+      lifecycle {
+        hook = "prestart"
+        sidecar = false
+      }
 
-      user = var.realtime_user
+      driver = "exec"
+      config {
+        command = "${NOMAD_TASK_DIR}/wait.sh"
+      }
+
+      template {
+        data = <<EOH
+#!/bin/bash
+
+until curl -o /dev/null --silent --fail "http://127.0.0.1:9010/hooks/healthcheck"; do
+    echo "webhook server - not ready"
+    sleep 5
+done
+echo "webhook server - ready"
+        EOH
+        destination = "${NOMAD_TASK_DIR}/wait.sh"
+        perms = "755"
+      }
+    }
+
+    task "minio" {
+      driver = "exec"
+      user = "minio"
 
       volume_mount {
-        volume = "minio_data"
-        destination = "/minio"
+        volume = "minio"
+        destination = "/var/lib/minio"
       }
 
       template {
@@ -44,10 +76,9 @@ job "minio_job" {
 # Minio env vars
 MINIO_ROOT_USER="{{key "minio/MINIO_ROOT_USER"}}"
 MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
-MINIO_KMS_SECRET_KEY="{{key "minio/MINIO_KMS_SECRET_KEY"}}"
-MINIO_NOTIFY_WEBHOOK_ENABLE=on
-MINIO_NOTIFY_WEBHOOK_ENDPOINT_PRIMARY="http://localhost:{{key "minio/webhook_endpoint_port"}}/hooks/minio"
-MINIO_NOTIFY_WEBHOOK_QUEUE_DIR=/minio/events
+MINIO_NOTIFY_WEBHOOK_ENABLE_PRIMARY=on
+MINIO_NOTIFY_WEBHOOK_ENDPOINT_PRIMARY="http://127.0.0.1:9010/hooks/minio"
+MINIO_NOTIFY_WEBHOOK_QUEUE_DIR=/var/lib/minio/events
         EOH
         destination = "secrets/file.env"
         env = true
@@ -57,8 +88,8 @@ MINIO_NOTIFY_WEBHOOK_QUEUE_DIR=/minio/events
         command = "minio"
         args = [
           "server",
-          "/minio/data",
-          "--console-address", ":9001"
+          "/var/lib/minio/data",
+          "--console-address", ":${NOMAD_PORT_minio_console}"
         ]
       }
 

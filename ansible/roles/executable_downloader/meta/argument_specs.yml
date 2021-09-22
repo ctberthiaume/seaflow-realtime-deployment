@@ -56,5 +56,11 @@ argument_specs:
       execdl_install_dir:
         type: "str"
         required: false
-        default: "/opt"
+        default: "/opt/installs"
         description: "Install location"
+
+      execdl_symlink_dir:
+        type: "str"
+        required: false
+        default: /usr/local/bin
+        description: "Symlink location"

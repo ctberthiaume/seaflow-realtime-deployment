@@ -9,3 +9,4 @@ minio_version_cmd: minio --version
 minio_url: "https://dl.min.io/server/minio/release/linux-amd64/archive/minio.{{ minio_version }}"
 minio_downloaded_file: "minio.{{ minio_version }}"
 minio_extracted_path: "minio.{{ minio_version }}"
+minio_symlink_dir: "/usr/local/bin"

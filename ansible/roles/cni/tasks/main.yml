@@ -1,8 +1,8 @@
 ---
-# tasks file for CNI brdige plugin
+# tasks file for CNI plugins
 
-- name: Import executable_downloader role
-  import_role:
+- name: Include executable_downloader role
+  include_role:
     name: executable_downloader
   vars:
     execdl_name: "{{ cni_name }}"

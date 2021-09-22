@@ -58,4 +58,7 @@
     - vault
     - grafana
     - timescaledb
+    - minio
+    - mc
+    - webhook
     - hashicorp-realtime-dashboard

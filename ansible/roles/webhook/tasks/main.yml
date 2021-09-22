@@ -1,0 +1,14 @@
+---
+
+- name: Include executable_downloader role
+  include_role:
+    name: executable_downloader
+  vars:
+    execdl_name: "{{ webhook_name }}"
+    execdl_checksum: "{{ webhook_checksum }}"
+    execdl_version: "{{ webhook_version }}"
+    execdl_version_success_string: "{{ webhook_version_success_string }}"
+    execdl_version_cmd: "{{ webhook_version_cmd }}"
+    execdl_url: "{{ webhook_url }}"
+    execdl_downloaded_file: "{{ webhook_downloaded_file }}"
+    execdl_extracted_path: "{{ webhook_extracted_path }}"
