@@ -8,6 +8,10 @@ connect {
   enabled = true
 }
 
+ports {
+  grpc = 8502
+}
+
 ui_config {
   enabled = true
 }
