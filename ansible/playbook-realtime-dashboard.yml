@@ -35,6 +35,7 @@
           - sshpass
           - tree
           - vim
+          - webhook
           - wget
           - zip
         update_cache: yes
@@ -60,5 +61,4 @@
     - timescaledb
     - minio
     - mc
-    - webhook
     - hashicorp-realtime-dashboard

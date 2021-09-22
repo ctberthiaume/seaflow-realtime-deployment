@@ -4,6 +4,10 @@ server = true
 
 bootstrap = true
 
+connect {
+  enabled = true
+}
+
 ui_config {
   enabled = true
 }

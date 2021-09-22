@@ -6,33 +6,40 @@ job "caddy_job" {
   group "caddy_group" {
     count = 1
 
-    # network {
-    #   port "caddy-admin" {
-    #     static = 2019
-    #     host_network = "localhost"
-    #   }
-    #   port "caddy-http" {
-    #     static = 80
-    #     host_network = "public"
-    #   }
-    #   # port "caddy-https" {
-    #   #   static = 443
-    #   #   host_network = "public"
-    #   # }
-    # }
+    network {
+      port "caddy-admin" {
+        static = 2019
+        host_network = "public"
+      }
+      port "http" {
+        static = 80
+        host_network = "public"
+      }
+      port "https" {
+        static = 443
+        host_network = "public"
+      }
+    }
 
-    # service {
-    #   name = "caddy"
-    #   port = "caddy-http"
-    #   # check {
-    #   #   type = "http"
-    #   #   method = "GET"
-    #   #   path = "/config"
-    #   #   port = "caddy-admin"
-    #   #   timeout = "3s"
-    #   #   interval = "30s"
-    #   # }
-    # }
+    service {
+      name = "caddy"
+
+      check {
+        name     = "alive"
+        type     = "tcp"
+        port     = "http"
+        interval = "10s"
+        timeout  = "2s"
+      }
+
+      # check {
+      #   name     = "alive"
+      #   type     = "tcp"
+      #   port     = "https"
+      #   interval = "10s"
+      #   timeout  = "5s"
+      # }
+    }
 
     volume "caddy_home" {
       type = "host"
@@ -40,31 +47,37 @@ job "caddy_job" {
     }
 
     task "caddy" {
-      driver = "exec"
-      user = "caddy"
+      driver = "docker"
 
-      env {
-        HOME = "/var/lib/caddy"
-      }
-
-      volume_mount {
-        volume = "caddy_home"
-        destination = "/var/lib/caddy"
+      config {
+        image = "caddy/caddy:local"
+        command = "caddy"
+        args = [ "run", "--environ", "--config", "${NOMAD_TASK_DIR}/Caddyfile" ]
+        network_mode = "host"
+ 
+        mount {
+          type = "volume"
+          target = "/data"
+          source = "lib_caddy"
+        }
+        cap_add = ["net_bind_service"]
       }
 
       template {
         data = <<EOH
-"{{ key "caddy/grafana-site-address" }}"
+"{{ key "caddy/grafana-site-address" }}" {
+  reverse_proxy 127.0.0.1:3000
+}
 
-reverse_proxy 127.0.0.1:3000
+:8800 {
+  reverse_proxy 127.0.0.1:8500
+}
+
+:4747 {
+  reverse_proxy 127.0.0.1:4646
+}
         EOH
         destination = "local/Caddyfile"
-      }
-
-      config {
-        command = "caddy"
-        args = [ "run", "--environ", "--config", "local/Caddyfile" ]
-        cap_add = ["net_bind_service"]
       }
     }
   }
