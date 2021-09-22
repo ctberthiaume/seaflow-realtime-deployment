@@ -41,9 +41,9 @@ job "webhook_job" {
       config {
         command = "webhook"
         args = [
-          # "-verbose",
+          "-verbose",
           "-template",
-          "-port", "{{ env "NOMAD_PORT_webhook" }}",
+          "-port", "${NOMAD_PORT_webhook}",
           "-hooks", "/local/hooks.json"
         ]
       }
