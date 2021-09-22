@@ -12,7 +12,6 @@ job "minio_job" {
     }
 
     network {
-      mode = "bridge"
       port "minio-api" {
         static = 9000
         host_network = "localhost"
@@ -30,7 +29,6 @@ job "minio_job" {
         type = "http"
         method = "GET"
         path = "/minio/health/live"
-        port = "minio-api"
         timeout = "10s"
         interval = "30s"
       }
@@ -44,7 +42,7 @@ job "minio_job" {
 
       driver = "exec"
       config {
-        command = "${NOMAD_TASK_DIR}/wait.sh"
+        command = "/local/wait.sh"
       }
 
       template {
@@ -57,7 +55,7 @@ until curl -o /dev/null --silent --fail "http://127.0.0.1:9010/hooks/healthcheck
 done
 echo "webhook server - ready"
         EOH
-        destination = "${NOMAD_TASK_DIR}/wait.sh"
+        destination = "/local/wait.sh"
         perms = "755"
       }
     }
@@ -89,7 +87,8 @@ MINIO_NOTIFY_WEBHOOK_QUEUE_DIR=/var/lib/minio/events
         args = [
           "server",
           "/var/lib/minio/data",
-          "--console-address", ":${NOMAD_PORT_minio_console}"
+          "--address", "127.0.0.1:${NOMAD_PORT_minio_api}",
+          "--console-address", "127.0.0.1:${NOMAD_PORT_minio_console}"
         ]
       }
 

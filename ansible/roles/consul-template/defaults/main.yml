@@ -1,0 +1,11 @@
+---
+# defaults file for consul-template
+
+consul_template_name: consul-template
+consul_template_checksum: sha256:0d319977885e0f44562cc5f78e225d8431499cc3a95cd1b3fe560df8556bf64a
+consul_template_version: 0.27.0
+consul_template_version_success_string: " v{{ consul_template_version }} "
+consul_template_version_cmd: consul-template -version
+consul_template_downloaded_file: "consul-template_{{ consul_template_version }}_linux_amd64.zip"
+consul_template_url: "https://releases.hashicorp.com/consul-template/{{ consul_template_version }}/{{ consul_template_downloaded_file }}"
+consul_template_extracted_path: "{{ consul_template_name }}"

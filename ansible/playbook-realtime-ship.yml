@@ -38,6 +38,7 @@
           - sshpass
           - tree
           - vim
+          - webhook
           - wget
           - zip
         update_cache: yes
@@ -66,5 +67,10 @@
   become_method: sudo
   roles:
     - consul
+    - consul-template
     - nomad
+    - grafana
+    - timescaledb
+    - minio
+    - mc
     - hashicorp-realtime-ship

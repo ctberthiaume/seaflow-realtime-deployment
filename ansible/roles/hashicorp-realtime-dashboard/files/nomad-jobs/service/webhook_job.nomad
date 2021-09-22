@@ -43,8 +43,8 @@ job "webhook_job" {
         args = [
           # "-verbose",
           "-template",
-          "-port", "${NOMAD_PORT_webhook}",
-          "-hooks", "${NOMAD_TASK_DIR}/hooks.json"
+          "-port", "{{ env "NOMAD_PORT_webhook" }}",
+          "-hooks", "/local/hooks.json"
         ]
       }
 
@@ -72,7 +72,7 @@ job "webhook_job" {
   },
   {
     "id": "minio",
-    "execute-command": "${NOMAD_TASK_DIR}/handle_minio_event.sh",
+    "execute-command": "/local/handle_minio_event.sh",
     "command-working-directory": "/",
     "response-message": "successfully received minio event",
     "response-headers": [
@@ -94,7 +94,7 @@ job "webhook_job" {
   }
 ]
         EOH
-        destination = "${NOMAD_TASK_DIR}/hooks.json"
+        destination = "/local/hooks.json"
       }
 
       template {
@@ -103,7 +103,7 @@ job "webhook_job" {
 set -e
 echo "I saw $@"
         EOH
-        destination = "${NOMAD_TASK_DIR}/handle_minio_event.sh"
+        destination = "/local/handle_minio_event.sh"
         perms = "755"
       }
     }

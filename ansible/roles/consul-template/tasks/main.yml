@@ -1,0 +1,15 @@
+---
+# tasks file for consul-template
+
+- name: Include executable_downloader role
+  include_role:
+    name: executable_downloader
+  vars:
+    execdl_name: "{{ consul_template_name }}"
+    execdl_checksum: "{{ consul_template_checksum }}"
+    execdl_version: "{{ consul_template_version }}"
+    execdl_version_success_string: "{{ consul_template_version_success_string }}"
+    execdl_version_cmd: "{{ consul_template_version_cmd }}"
+    execdl_url: "{{ consul_template_url }}"
+    execdl_downloaded_file: "{{ consul_template_downloaded_file }}"
+    execdl_extracted_path: "{{ consul_template_extracted_path }}"

@@ -60,19 +60,22 @@ job "caddy_job" {
           target = "/data"
           source = "lib_caddy"
         }
-        cap_add = ["net_bind_service"]
+        #cap_add = ["net_bind_service"]
       }
 
       template {
         data = <<EOH
+# grafana
 "{{ key "caddy/grafana-site-address" }}" {
   reverse_proxy 127.0.0.1:3000
 }
 
+# consul
 :8800 {
   reverse_proxy 127.0.0.1:8500
 }
 
+# nomad
 :4747 {
   reverse_proxy 127.0.0.1:4646
 }

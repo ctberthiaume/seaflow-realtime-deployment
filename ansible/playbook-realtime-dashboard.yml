@@ -55,6 +55,7 @@
   roles:
     - caddy
     - consul
+    - consul-template
     - nomad
     - vault
     - grafana
