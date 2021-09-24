@@ -64,6 +64,21 @@ job "caddy" {
 "{{ key "caddy/grafana-site-address" }}" {
   reverse_proxy grafana.service.consul:3000
 }
+
+# minio web console
+:4000 {
+  reverse_proxy minio.service.consul:9001
+}
+
+# consul web console
+:8800 {
+  reverse_proxy consul.service.consul:8500
+}
+
+# nomad web console
+:4747 {
+  reverse_proxy nomad.service.consul:4646
+}
         EOH
         destination = "/local/Caddyfile"
       }

@@ -3,12 +3,12 @@ variable "realtime_user" {
   default = "ubuntu"
 }
 
-job "webhook_job" {
+job "webhook" {
   datacenters = ["dc1"]
 
   type = "service"
 
-  group "webhook_group" {
+  group "webhook" {
     count = 1
 
     volume "jobs_data" {
@@ -100,8 +100,9 @@ job "webhook_job" {
       template {
         data = <<EOH
 #!/bin/bash
-set -e
-echo "I saw $@"
+
+echo nomad job dispatch --meta "bucket=$1" --meta "key=$2" ingest
+nomad job dispatch --meta "bucket=$1" --meta "key=$2" ingest
         EOH
         destination = "/local/handle_minio_event.sh"
         perms = "755"

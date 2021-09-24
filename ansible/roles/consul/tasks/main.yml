@@ -66,3 +66,49 @@
   assert:
     that:
       - "'Consul' in version_result.stdout"
+
+# This next section about consul DNS and port maps sets up integration between
+# consul DNS and systemd-resolved.
+# https://learn.hashicorp.com/tutorials/consul/dns-forwarding
+- name: Create systemd-resolved config subdir
+  become: yes
+  file:
+    path: "/etc/systemd/resolved.conf.d"
+    state: directory
+
+- name: Add systemd-resolved consul config file
+  become: yes
+  copy:
+    src: "consul.conf"
+    dest: "/etc/systemd/resolved.conf.d/consul.conf"
+    owner: root
+    group: root
+    mode: 0644
+  notify:
+    - Restart systemd-resolved
+
+- name: Install consul DNS port map script
+  become: yes
+  copy:
+    src: "consul-dns-port-map"
+    dest: "/usr/local/bin/"
+    mode: 755
+
+- name: Run consul DNS port map script
+  become: yes
+  shell: consul-dns-port-map
+
+- name: Install consul DNS port map service
+  become: yes
+  copy:
+    src: "consul-dns-port-map.service"
+    dest: "/usr/lib/systemd/system/"
+    mode: 0644
+  notify:
+    - Reload systemd
+
+- name: Enable consul DNS port map service
+  become: yes
+  systemd:
+    name: consul-dns-port-map
+    enabled: yes

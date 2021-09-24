@@ -9,7 +9,7 @@ job "subsample_job" {
   type = "batch"
 
   periodic {
-    cron = "0 */2 * * *"  // every 2 hours at 10 past the hour
+    cron = "10 */4 * * *"  // every 4 hours at 10 past the hour
     prohibit_overlap = true
     time_zone = "UTC"
   }

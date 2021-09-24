@@ -1,0 +1,28 @@
+- hosts: all
+  gather_facts: no
+  tasks:
+    - name: create build directory
+      file:
+        path: "/home/{{ ansible_user }}/docker/ingest"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+    - name: copy ingest Docker container files
+      copy:
+        src: ./docker/ingest
+        dest: "/home/{{ ansible_user }}/docker/"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0644'
+    - name: make docker entrypoint file executable
+      file:
+        path: "/home/{{ ansible_user }}/docker/ingest/run.sh"
+        mode: '0755'
+    - name: build ingest container image
+      community.docker.docker_image:
+        name: ingest:local
+        build:
+          path: "/home/{{ ansible_user }}/docker/ingest"
+        source: build
+        state: present

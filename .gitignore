@@ -8,4 +8,4 @@ cruisereplay_data/SFlog.txt
 cruisereplay_data/output
 jobs_data/*
 ansible/inventories/realtime-*
-consul_state
+consul_state/consul-state-dashboard.json

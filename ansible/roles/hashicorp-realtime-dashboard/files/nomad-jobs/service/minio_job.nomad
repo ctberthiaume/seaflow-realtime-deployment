@@ -1,9 +1,9 @@
-job "minio_job" {
+job "minio" {
   datacenters = ["dc1"]
 
   type = "service"
 
-  group "minio_group" {
+  group "minio" {
     count = 1
 
     volume "minio" {
@@ -25,6 +25,7 @@ job "minio_job" {
     service {
       name = "minio"
       port = "minio-api"
+      task = "minio"
       check {
         type = "http"
         method = "GET"
@@ -74,9 +75,9 @@ echo "webhook server - ready"
 # Minio env vars
 MINIO_ROOT_USER="{{key "minio/MINIO_ROOT_USER"}}"
 MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
-MINIO_NOTIFY_WEBHOOK_ENABLE_PRIMARY=on
-MINIO_NOTIFY_WEBHOOK_ENDPOINT_PRIMARY="http://127.0.0.1:9010/hooks/minio"
-MINIO_NOTIFY_WEBHOOK_QUEUE_DIR=/var/lib/minio/events
+#MINIO_NOTIFY_WEBHOOK_ENABLE_PRIMARY=on
+#MINIO_NOTIFY_WEBHOOK_ENDPOINT_PRIMARY="http://127.0.0.1:9010/hooks/minio"
+#MINIO_NOTIFY_WEBHOOK_QUEUE_DIR=/var/lib/minio/events
         EOH
         destination = "secrets/file.env"
         env = true
@@ -95,6 +96,80 @@ MINIO_NOTIFY_WEBHOOK_QUEUE_DIR=/var/lib/minio/events
       resources {
         memory = 1000
         cpu = 500
+      }
+    }
+
+    task "intial_setup" {
+      lifecycle {
+        hook = "poststart"
+        # shouldn't be a sidecar job, just a workaround for the bug detailed in
+        # the template below
+        sidecar = true
+      }
+
+      driver = "exec"
+      config {
+        command = "/local/setup.sh"
+      }
+
+      template {
+        data = <<EOH
+# Minio env vars
+MC_HOST_minio="http://{{key "minio/MINIO_ROOT_USER"}}:{{key "minio/MINIO_ROOT_PASSWORD"}}@127.0.0.1:{{ env "NOMAD_PORT_minio_api" }}"
+        EOH
+        destination = "secrets/file.env"
+        env = true
+      }
+
+      template {
+        data = <<EOH
+#!/bin/bash
+set -e
+
+# Check current bucket set
+mc ls minio/ || exit 1
+
+# ----------------------
+# Create default buckets
+# ----------------------
+# Where to put input tsdata files
+mc mb --ignore-existing "minio/data/" || exit 1
+# Time-binned summary bucket
+mc mb --ignore-existing "minio/binned/" || exit 1
+# Dashboard JSON bucket
+mc mb --ignore-existing "minio/dashboard" || exit 1
+
+if mc admin config get minio notify_webhook 2>&1 | grep "endpoint=http://127.0.0.1:9010/hooks/minio"; then
+    echo "webhook for http://127.0.0.1:9010/hooks/minio already enabled "
+else
+    echo "enabling webhook for http://127.0.0.1:9010/hooks/minio"
+    mc admin config set minio notify_webhook:1  endpoint="http://127.0.0.1:9010/hooks/minio" queue_dir="/var/lib/minio/events" || exit 1
+    # Restart minio
+      mc admin service restart minio || exit 1
+fi
+
+# Create webhook bucket put events if needed
+for bucket in data dashboard; do
+  if mc event list "minio/$bucket" 2>&1 | grep 'arn:minio:sqs::1:webhook'; then
+      echo "webhook notification event for minio/$bucket already created"
+  else
+      echo "creating webhook notification event for minio/$bucket at arn:minio:sqs::1:webhook"
+      mc event add "minio/$bucket" arn:minio:sqs::1:webhook --event put || exit 1
+  fi
+done
+
+# Sleep forever to avoid entering unhealthy job state. Just sleeping for more
+# than min_healthy_time doesn't seem to be reliable.
+# https://www.nomadproject.io/docs/job-specification/update#min_healthy_time
+# Workaround for this bug
+# https://github.com/hashicorp/nomad/issues/10058
+while true
+do
+  sleep 3600
+done
+        EOH
+        destination = "/local/setup.sh"
+        perms = "755"
       }
     }
   }

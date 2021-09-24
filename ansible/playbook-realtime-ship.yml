@@ -13,6 +13,7 @@
           - ca-certificates
           - cifs-utils
           - curl
+          - debconf-utils
           - fio
           - git
           - gnupg-agent
@@ -20,6 +21,7 @@
           - hwloc
           - inotify-tools
           - iotop
+          - iptables-persistent
           - jq
           - lm-sensors
           - net-tools
@@ -49,6 +51,9 @@
   become_method: sudo
   roles:
     - apt-disable-unattended-upgrade
+
+- name: Include ingest Docker playbook
+  import_playbook: playbook-ingest-docker.yml
 
 - hosts: all
   become: yes
