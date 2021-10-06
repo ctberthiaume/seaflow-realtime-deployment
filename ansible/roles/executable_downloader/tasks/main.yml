@@ -8,21 +8,20 @@
     update_cache: yes
     cache_valid_time: 1800
 
-- name: "{{ execdl_name }} : stat executable file"
-  stat:
-    path: "{{ execdl_install_dir }}/{{ execdl_name }}-{{ execdl_version }}/bin/{{ execdl_name }}"
-  register: exec_stat
+- name: "{{ execdl_name }} : check if executable can be run with correct version"
+  command: "bash --login -c '{{ execdl_version_cmd }}'"
+  register: version_cmd_result
+  check_mode: no
+  changed_when: False
 
 - debug:
-    msg: "{{ execdl_name }} : executable found, not installing"
-  when: exec_stat.stat.exists
+    msg: "stdout={{ version_cmd_result.stdout }}"
 
 - debug:
-    msg: "{{ execdl_name }} : executable not found, installing"
-  when: exec_stat.stat.exists == False
+    msg: "stderr={{ version_cmd_result.stderr }}"
 
 - name: "{{ execdl_name }} : Install from download"
-  when: exec_stat.stat.exists == False
+  when: version_cmd_result.rc != 0 or not (execdl_version_success_string in version_cmd_result.stdout or execdl_version_success_string in version_cmd_result.stderr)
   block:
     - name: "{{ execdl_name }} : Erase any existing download directory"
       file:

@@ -50,10 +50,23 @@
     owner: "{{ realtime_user }}"
     group: "{{ realtime_user }}"
 
+- name: Create realtime scripts directory
+  become: yes
+  file:
+    path: /etc/realtime/scripts
+    state: directory
+    recurse: yes
+    mode: 0755
+    owner: "{{ realtime_user }}"
+    group: "{{ realtime_user }}"
+
 - name: Install nomad management scripts
   become: yes
   copy:
-    src: scripts
-    dest: /etc/realtime
+    src: "{{ item }}"
+    dest: /etc/realtime/scripts
     owner: "{{ realtime_user }}"
     group: "{{ realtime_user }}"
+    mode: 0755
+  loop:
+    - scripts/stop-batch-jobs.sh

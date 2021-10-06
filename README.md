@@ -17,82 +17,176 @@ pip install ansible passlib cryptography # passlib needed on MacOS for password 
 (cd ansible && ansible-galaxy install -r requirements.yml)
 ```
 
-## Test usage
+## Create shore (test) and ship, instrument (test) VM OVA files
 
 ```shell
-# Install vagrant Virtualbox guest additions plugin
-vagrant plugin install vagrant-vbguest
+cd packer/realtime-shore
+packer init virtualbox-realtime-ship.pkr.hcl
+packer build \
+  -var ssh_private_key_file=<path-to-shore-private-key> \
+  -var ssh_public_key_file=<path-to-shore-public-key> \
+  virtualbox-realtime-ship.pkr.hcl
 
-# Bring up vagrant testing VMs
-vagrant up
+cd packer/realtime-ship
+packer init virtualbox-realtime-ship.pkr.hcl
+packer build \
+  -var ssh_private_key_file=<path-to-ship-private-key> \
+  -var ssh_public_key_file=<path-to-ship-public-key> \
+  virtualbox-realtime-ship.pkr.hcl
 
-# Provision the source test VM
-ansible-playbook -i ansible/inventories/vagrant.yml -l source ansible/playbook-source.yml
+# Build instrument test VM
+packer init virtualbox-realtime-instrument.pkr.hcl
+packer build \
+  -var ssh_private_key_file=<path-to-ship-private-key> \
+  -var ssh_public_key_file=<path-to-ship-public-key> \
+  virtualbox-realtime-instrument.pkr.hcl
+```
 
-# Provision the sink test VM
+## Import VMs on bare metal hosts
+
+From the repo root
+
+```shell
+VBoxManage import packer/realtime-ship/output-realtime-ship/*.ova
+VBoxManage import packer/realtime-shore/output-realtime-shore/*.ova
+VBoxManage import packer/realtime-instrument/output-realtime-instrument/*.ova
+
+# Note VM names
+VBoxManage list vms
+VBoxManage list runningvms
+```
+
+## Set up VirtualBox shared folder
+
+Set a shared folder for the realtime ship VM.
+Because this configuration depends on the host filesystem it isn't added when the VM is created by Packer.
+Create it after the VM has been imported to Virtualbox with `VBoxManage`.
+This location won't be automounted until we set that up later.
+
+```shell
+VBoxManage sharedfolder add realtime-ship --name jobs_data --hostpath=$(pwd)/jobs_data
+VBoxManage sharedfolder add realtime-instrument --name cruisereplay_data --hostpath=$(pwd)/cruisereplay_data
+```
+
+## Set up VirtualBox port forwarding for shore test VM
+
+The guest will likely be run with NAT networking, in which case port forwarding will need to be set up.
+Use `VBoxManage modifyvm --natpf1` for VMs which are stopped,
+and `VBoxManage controlvm natpf1` for running vms.
+
+In this example we forward guest port 80 to host port 3001.
+The web server can be accessed on the host at `http://localhost:3001`.
+
+Here's an example to expose all SSH and caddy reverse proxies on the guest machine
+
+```shell
+VBoxManage modifyvm realtime-shore --natpf1 "ssh,tcp,,2222,,22"
+VBoxManage modifyvm realtime-shore --natpf1 "grafana,tcp,,3000,,80"
+VBoxManage modifyvm realtime-shore --natpf1 "consul,tcp,,8800,,8800"
+VBoxManage modifyvm realtime-shore --natpf1 "nomad,tcp,,4747,,4747"
+VBoxManage modifyvm realtime-shore --natpf1 "minio,tcp,,4000,,4000"
+VBoxManage modifyvm realtime-shore --natpf1 "fileserver,tcp,,5000,,5000"
+```
+
+## Create EC2 cloud shore instance
+
+Manually for now, terraform eventually.
+
+## Update SSh and ansible inventories
+
+Update your `~/.ssh/config` to configure SSH access to each machine,
+and update ansible inventory files to use these host name aliases.
+
+* inventories/realtime_ship.yml
+* inventories/realtime_shore.yml
+
+## Update credentials on ship or shore system
+
+Update the default user password, turn off password SSH access, disable root login.
+
+The secrets.yml ansible-vault encrypted file should contain the `realtime_user_password` ansible variable.
+If there should be separate passwords for each system use separate secrets files.
+
+```shell
+cd ansible
+
+ansible-playbook -i inventories/realtime_ship.yml --ask-vault-pass \
+  --extra-vars="@vault/secrets.yml" \
+  playbook-credentials.yml
+
+ansible-playbook -i inventories/realtime_shore.yml --ask-vault-pass \
+  --extra-vars="@vault/secrets.yml" \
+  playbook-credentials.yml
+```
+
+## Provision software on ship and shore systems
+
+```shell
+cd ansible
+
+# Set up the shared folder mount on the realtime ship VM
+ansible-playbook -i inventories/realtime-ship.yml playbook-mount-share-jobs-data.yml
+# Full provisioning
+ansible-playbook -i inventories/realtime-ship.yml playbook-realtime-ship.yml
+
+# Set up the shared folder mount on the realtime instrument VM
+ansible-playbook -i inventories/realtime-instrument.yml playbook-mount-share-cruisereplay-data.yml
+# Full provisioning
+ansible-playbook -i inventories/realtime-instrument.yml playbook-realtime-instrument.yml
+
+
+ansible-playbook -i inventories/realtime-shore.yml playbook-realtime-shore.yml
+```
+
+## Update consul key value configs
+
+Copy and modify `consul_state/consul_state_ship_example.json` and `consul_state/consul_state_shore_example.json`.
+Then copy to the appropriate server and import the file.
+Assume we have SSH config aliases set up for these machines.
+
+```shell
+# Make new copies of example files
+cp consul_state/consul_state_ship_example.json consul_state/consul_state_ship.json
+cp consul_state/consul_state_shore_example.json consul_state/consul_state_shore.json
+
+# Edit JSON files
+
+# Copy to hosts
+scp consul_state/consul_state_ship.json realtime-ship:/etc/realtime/consul_state.json
+scp consul_state/consul_state_shore.json realtime-shore:/etc/realtime/consul_state.json
+
+ssh realtime-ship
+# Back up the current consul state
+realtime-ship:~$ consul kv export | jq '[ .[] | .value = (.value | @base64d) ]' > /etc/realtime/consul_state_$(date --rfc-3339=seconds | awk '{print $1 "T" $2}').json
+# Load key value data
+realtime-ship:~$ jq '[ .[] | .value = (.value | @base64) ]' < /etc/realtime/consul_state.json | consul kv import -
+
+# Do the same for realtime-shore
+# ...
+```
+
+## vagrant variation usage
+
+Same as with a normal virtualbox VM except you have to specify an alternative
+realtime user. e.g.
+
+```shell
 ansible-playbook -i ansible/inventories/vagrant.yml  -l sink --extra-vars "realtime_user=vagrant" ansible/playbook-sink.yml
-
-# Manually Load consul state
-vagrant ssh sink
-vagrant@sink:~$ jq '[ .[] | .value = (.value | @base64) ]' < /consul_state/consul-state.json | consul kv import -
-
-# Capture the consul state and convert values to strings
-consul kv export | jq '[ .[] | .value = (.value | @base64d) ]' > /consul_state/consul_state.backup.json
-
-# Turn on analysis
-vagrant@sink:~$ consul kv put cruise/onoff on
 ```
 
-## Create consul JSON state file
-
-Add entries for nomad jobs.
-Search for "{{ key " in nomad job files to find the required keys.
-Create a JSON file that looks like this
-
-```json
-[
-  {
-    "key": "cruise/name",
-    "flags": 0,
-    "value": "Intrepid-9"
-  },
-  {
-    "key": "cruise/start",
-    "flags": 0,
-    "value": "2020-12-16T00:00:00Z"
-  }
-]
-```
+## Add popcycle sqlite3 database file to consul JSON
 
 For the popcycle Sqlite3 database, add it as a base64 encoded gzip string.
 Use this shell snippet to construct the correct JSON object for the database data.
 The base64 string should be around 30K in size for one set of gates.
 
 ```shell
-printf "{\n    \"key\": \"appconfig/seaflow-analysis/dbgz\",\n    \"value\": \"$(gzip -c HOT325.base.db | base64 -w 0)\"\n}\n"
-```
-
-## Update credentials on realtime VM
-
-Update the default user password, turn off password SSH access, disable root login.
-
-The secrets.yml ansible-vault encrypted file should contain the realtime_user_password ansible variable.
-
-```sh
-(cd ansible && ansible-playbook -i inventories/realtime_ship.yml --ask-vault-pass \
-  --extra-vars="@vault/secrets.yml" \
-  playbook-credentials.yml
-)
-```
-
-## Add shared folder to realtime VM
-
-Because this configuration depends on the host filesystem it isn't added when the VM is created by Packer.
-Create it after the VM has been imported to Virtualbox with `VBoxManage`.
-
-```sh
-VBoxManage sharedfolder add <vmname> --name jobs_data --hostpath=<location in host>
-(cd ansible && ansible-playbook -i inventories/realtime_ship.yml playbook-mount-share.yml)
+cp mydb.db clean.db
+# Delete unneeded data
+sqlite3 clean.db 'delete from vct; delete from opp; delete from outlier; vacuum;'
+# Make sure metadata table has correct cruise and instrument serial
+# ...
+printf "{\n    \"key\": \"seaflow-analysis/740/dbgz\",\n    \"value\": \"$(gzip -c clean.db | base64 -w 0)\"\n}\n"
 ```
 
 ## Useful VBoxManage commands

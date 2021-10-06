@@ -1,8 +1,7 @@
-- name: Include ingest Docker playbook
-  import_playbook: playbook-ingest-docker.yml
-
 - hosts: all
   become: yes
   become_method: sudo
   roles:
-    - hashicorp-realtime-dashboard
+    - cni
+    - seaflow-transfer
+    #- hashicorp-realtime-shore

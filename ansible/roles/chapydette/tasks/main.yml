@@ -1,0 +1,36 @@
+---
+# tasks file for chapydette
+
+- include_role:
+    name: docker
+
+- name: "chapydette : Pull docker image"
+  community.docker.docker_image:
+    name: "{{ chapydette_image }}:{{ chapydette_version }}"
+    source: pull
+
+# Image can't be tagged as 'latest' for nomad local docker images so we'll use
+# 'local' instead
+- name: "chapydette : Tag image as local"
+  community.docker.docker_image:
+    name: "{{ chapydette_image }}:{{ chapydette_version }}"
+    repository: "{{ chapydette_image }}:local"
+    force_tag: yes
+    source: local
+
+- name: "chapydette : Get version"
+  command: "docker run --rm {{ chapydette_image }}:local findchangepoints --version"
+  register: chapydette_version_cmd_result
+  check_mode: no
+  changed_when: False
+
+- debug:
+    msg: "stdout={{ chapydette_version_cmd_result.stdout }}"
+
+- debug:
+    msg: "stderr={{ chapydette_version_cmd_result.stderr }}"
+
+- name: "chapydette : Confirm version is correct"
+  assert:
+    that:
+      - chapydette_version in chapydette_version_cmd_result.stdout or chapydette_version in chapydette_version_cmd_result.stderr

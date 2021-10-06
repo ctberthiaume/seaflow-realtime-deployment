@@ -1,0 +1,38 @@
+---
+- include_role:
+    name: docker
+
+- name: create build directory
+  file:
+    path: "/home/{{ ansible_user }}/docker/ingest"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: copy ingest Docker container files
+  copy:
+    src: docker/
+    dest: "/home/{{ ansible_user }}/docker/ingest/"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: build ingest container image
+  community.docker.docker_image:
+    name: "ingest:{{ ingest_version }}"
+    build:
+      path: "/home/{{ ansible_user }}/docker/ingest"
+    source: build
+    state: present
+  register: build_output
+
+# Image can't be tagged as 'latest' for nomad local docker images so we'll use
+# 'local' instead
+- name: "Tag image as local"
+  community.docker.docker_image:
+    name: "ingest:{{ ingest_version }}"
+    repository: "ingest:local"
+    force_tag: yes
+    source: local
+  when: build_output.changed

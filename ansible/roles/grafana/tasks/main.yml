@@ -4,16 +4,34 @@
 - include_role:
     name: docker
 
-- name: "grafana : Pull docker image"
+- name: "Pull docker image"
   community.docker.docker_image:
     name: "{{ grafana_image }}:{{ grafana_version }}"
     source: pull
 
 # Image can't be tagged as 'latest' for nomad local docker images so we'll use
 # 'local' instead
-- name: "grafana : Tag image as local"
+- name: "Tag image as local"
   community.docker.docker_image:
     name: "{{ grafana_image }}:{{ grafana_version }}"
     repository: "{{ grafana_image }}:local"
     force_tag: yes
     source: local
+
+- name: "Create plugin zip file cache location"
+  become: yes
+  file:
+    path: /var/lib/grafana/plugin-zips
+    state: directory
+    recurse: yes
+    mode: 0755
+    owner: "{{ realtime_user }}"
+    group: "{{ realtime_user }}"
+
+- name: "Download plotly plugin zip file"
+  get_url:
+    url: "https://github.com/ctberthiaume/ae3e-plotly-panel/releases/download/v{{ plotly_plugin_version }}/armbrustlab-plotly-panel-{{ plotly_plugin_version }}.zip"
+    dest: "/var/lib/grafana/plugin-zips/armbrustlab-plotly-panel-{{ plotly_plugin_version }}.zip"
+    mode: 0644
+    checksum: "{{ plotly_plugin_checksum }}"
+  register: dl

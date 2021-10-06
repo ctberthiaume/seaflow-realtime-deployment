@@ -3,7 +3,7 @@ variable "realtime_user" {
   default = "ubuntu"
 }
 
-job "seaflow-analysis_job" {
+job "seaflow-analysis" {
   datacenters = ["dc1"]
 
   type = "batch"
@@ -24,7 +24,7 @@ job "seaflow-analysis_job" {
     unlimited = false
   }
 
-  group "seaflow-analysis_group" {
+  group "seaflow-analysis" {
     count = 1
 
     volume "jobs_data" {
@@ -184,26 +184,29 @@ seaflowpy filter local -p 2 --delta -e "$rawdatadir" -d "$dbfile" -o "$outdir/${
 
 parser <- optparse::OptionParser(usage="usage: realtime-classify.R --db FILE --vct-dir FILE --opp-dir DIR [options]")
 parser <- optparse::add_option(parser, c("--db"), type="character", default="",
-  help="Popcycle database file. Required.",
-  metavar="FILE")
+                               help="Popcycle database file. Required.",
+                               metavar="FILE")
 parser <- optparse::add_option(parser, c("--opp-dir"), type="character", default="",
-  help="OPP directory. Required.",
-  metavar="DIR")
+                               help="OPP directory. Required.",
+                               metavar="DIR")
 parser <- optparse::add_option(parser, c("--vct-dir"), type="character", default="",
-  help="VCT directory. Required.",
-  metavar="DIR")
-parser <- optparse::add_option(parser, c("--stats-file"), type="character", default="",
-  help="Stats table output file.",
-  metavar="FILE")
+                               help="VCT directory. Required.",
+                               metavar="DIR")
+parser <- optparse::add_option(parser, c("--stats-abund-file"), type="character", default="",
+                               help="Stats table output file with abundance.",
+                               metavar="FILE")
+parser <- optparse::add_option(parser, c("--stats-no-abund-file"), type="character", default="",
+                               help="Stats table output file without abundance.",
+                               metavar="FILE")
 parser <- optparse::add_option(parser, c("--sfl-file"), type="character", default="",
-  help="SFL table output file.",
-  metavar="FILE")
+                               help="SFL table output file.",
+                               metavar="FILE")
 parser <- optparse::add_option(parser, c("--plot-vct-file"), type="character", default="",
-  help="VCT plot output file.",
-  metavar="FILE")
+                               help="VCT plot output file.",
+                               metavar="FILE")
 parser <- optparse::add_option(parser, c("--plot-gates-file"), type="character", default="",
-  help="Gates plot output file.",
-  metavar="FILE")
+                               help="Gates plot output file.",
+                               metavar="FILE")
 
 p <- optparse::parse_args2(parser)
 if (p$options$db == "" || p$options$opp_dir == "" || p$options$vct_dir == "") {
@@ -222,7 +225,8 @@ if (p$options$db == "" || p$options$opp_dir == "" || p$options$vct_dir == "") {
   }
 }
 
-stats_file <- p$options$stats_file
+stats_no_abund_file <- p$options$stats_no_abund_file
+stats_abund_file <- p$options$stats_abund_file
 sfl_file <- p$options$sfl_file
 plot_vct_file <- p$options$plot_vct_file
 plot_gates_file <- p$options$plot_gates_file
@@ -242,7 +246,8 @@ message(paste0("cruise (from db) = ", cruise))
 message(paste0("serial (from db) = ", inst))
 message(paste0("opp-dir = ", opp_dir))
 message(paste0("vct-dir = ", vct_dir))
-message(paste0("stats-file = ", stats_file))
+message(paste0("stats-no-abund-file = ", stats_no_abund_file))
+message(paste0("stats-abund-file = ", stats_abund_file))
 message(paste0("sfl-file = ", sfl_file))
 message(paste0("plot-vct-file = ", plot_vct_file))
 message(paste0("plot-gates-file = ", plot_gates_file))
@@ -262,15 +267,32 @@ if (length(files_to_gate) > 0) {
 ##########################
 ### Save Stats and SFL ###
 ##########################
-if (stats_file != "") {
-  stat <- popcycle::create_realtime_bio(db, 50)
-  dated_msg("saving stats / bio file")
-  readr::write_csv(stat, stats_file)
+if (stats_abund_file != "") {
+  dated_msg("saving stats / bio file with abundance")
+  stats_abund <- popcycle::create_realtime_bio(db, 50, with_abundance=TRUE)
+  filetype <- paste0("SeaFlowPopAbundance_", inst)
+  description <- paste0("SeaFlow population data for instrument ", inst)
+  popcycle::write_realtime_bio_tsdata(
+    stats_abund, stats_abund_file, project=cruise, filetype=filetype, description=description
+  )
+}
+if (stats_no_abund_file != "") {
+  dated_msg("saving stats / bio file without abundance")
+  stats_no_abund <- popcycle::create_realtime_bio(db, 50, with_abundance=FALSE)
+  filetype <- paste0("SeaFlowPop_", inst)
+  description <- paste0("SeaFlow population data without abundance for instrument ", inst)
+  popcycle::write_realtime_bio_tsdata(
+    stats_no_abund, stats_no_abund_file, project=cruise, filetype=filetype, description=description
+  )
 }
 if (sfl_file != "") {
-  sfl <- popcycle::create_realtime_meta(db, 50)
   dated_msg("saving SFL / metadata file")
-  readr::write_csv(sfl, sfl_file)
+  meta <- popcycle::create_realtime_meta(db, 50)
+  filetype <- paste0("SeaFlowSFL_", inst)
+  description <- paste0("SeaFlow SFL data for instrument ", inst)
+  popcycle::write_realtime_meta_tsdata(
+    meta, sfl_file, project=cruise, filetype=filetype, description=description
+  )
 }
 
 ######################
@@ -288,19 +310,39 @@ if (plot_vct_file != "" || plot_gates_file != "") {
 
   if (plot_vct_file != "") {
     dated_msg("creating VCT cytogram")
-    ggplot2::ggsave(
-      plot_vct_file,
-      popcycle::plot_vct_cytogram(vct, "fsc_small","chl_small", transform=FALSE),
-      width=10, height=6, unit='in', dpi=150
+    tryCatch(
+      {
+        ggplot2::ggsave(
+          plot_vct_file,
+          popcycle::plot_vct_cytogram(vct, "fsc_small","chl_small", transform=FALSE),
+          width=10, height=6, unit='in', dpi=150
+        )
+      },
+      error=function(cond) {
+        message(cond)
+      },
+      warning=function(cond) {
+        message(cond)
+      }
     )
   }
 
   if (plot_gates_file != "") {
     dated_msg("creating Gate cytogram")
-    ggplot2::ggsave(
-      plot_gates_file,
-      popcycle::plot_cytogram(vct, para.x="fsc_small", para.y="chl_small", bins=200, transform=FALSE),
-      width=10, height=6, unit='in', dpi=150
+    tryCatch(
+      {
+        ggplot2::ggsave(
+          plot_gates_file,
+          popcycle::plot_cytogram(vct, para.x="fsc_small", para.y="chl_small", bins=200, transform=FALSE),
+          width=10, height=6, unit='in', dpi=150
+        )
+      },
+      error=function(cond) {
+        message(cond)
+      },
+      warning=function(cond) {
+        message(cond)
+      }
     )
   }
 }
@@ -327,10 +369,11 @@ outdir="/jobs_data/seaflow-analysis/${cruise}/${instrument}"
 dbfile="${outdir}/${cruise}.db"
 oppdir="${outdir}/${cruise}_opp"
 vctdir="${outdir}/${cruise}_vct"
-statsfile="${outdir}/stat.csv"
-sflfile="${outdir}/sfl.popcycle.csv"
-plotvctfile="${outdir}/vct.cytogram.png"
-plotgatesfile="${outdir}/gate.cytogram.png"
+statsabundfile="${outdir}/stats-abund.${instrument}.tsdata"
+statsnoabundfile="${outdir}/stats-no-abund.${instrument}.tsdata"
+sflfile="${outdir}/sfl.popcycle.${instrument}.tsdata"
+plotvctfile="${outdir}/vct.cytogram.${instrument}.png"
+plotgatesfile="${outdir}/gate.cytogram.${instrument}.png"
 
 Rscript --slave -e 'message(packageVersion("popcycle"))'
 
@@ -340,13 +383,30 @@ Rscript --slave /local/cron_job.R \
   --db "${dbfile}" \
   --opp-dir "${oppdir}" \
   --vct-dir "${vctdir}" \
-  --stats-file "${statsfile}" \
+  --stats-abund-file "${statsabundfile}" \
+  --stats-no-abund-file "${statsnoabundfile}" \
   --sfl-file "${sflfile}" \
   --plot-vct-file "${plotvctfile}" \
   --plot-gates-file "${plotgatesfile}"
 
-[[ -d /jobs_data/sync/seaflow-analysis ]] || mkdir -p /jobs_data/sync/seaflow-analysis
-cp "${statsfile}" "${sflfile}" "${plotvctfile}" "${plotgatesfile}" /jobs_data/sync/seaflow-analysis
+# Export section
+# -----------------------------------------------------------------------------
+# Would put this in a separate task to run after this and upload to minio
+# directly but we've already used all task lifecycle types available and rclone
+# is not in the popcycle docker image.
+
+# Copy for dashboard data
+[[ ! -d /jobs_data/ingestwatch/seaflow-analysis/ ]] && mkdir -p /jobs_data/ingestwatch/seaflow-analysis/
+cp -a "${statsabundfile}" /jobs_data/ingestwatch/seaflow-analysis/
+cp -a "${sflfile}" /jobs_data/ingestwatch/seaflow-analysis/
+
+# # Copy for sync to shore
+[[ ! -d /jobs_data/sync/seaflow-analysis/ ]] && mkdir -p /jobs_data/sync/seaflow-analysis/
+cp -a "${statsnoabundfile}" /jobs_data/ingestwatch/seaflow-analysis/
+cp -a "${sflfile}" /jobs_data/ingestwatch/seaflow-analysis/
+cp -a "${plotvctfile}" /jobs_data/ingestwatch/seaflow-analysis/
+cp -a "${plotgatesfile}" /jobs_data/ingestwatch/seaflow-analysis/
+
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"

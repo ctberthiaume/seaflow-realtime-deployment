@@ -1,0 +1,58 @@
+[
+  {
+    "key": "caddy/grafana-site-address",
+    "value": "http://localhost:3001"
+  },
+  {
+    "key": "caddy/fileserver_path",
+    "value": "/jobs_data/fileserver"
+  },
+  {
+    "key": "caddy/fileserver_file",
+    "value": "sfl.popcycle.csv.tsdata"
+  },
+
+  {
+    "key": "grafana/GF_SECURITY_ADMIN_PASSWORD",
+    "value": "password"
+  },
+  {
+    "key": "grafana/domain",
+    "value": "localhost"
+  },
+  {
+    "key": "grafana/org",
+    "value": "Armbrust Lab"
+  },
+
+  {
+    "key": "timescaledb/POSTGRES_PASSWORD",
+    "value": "password"
+  },
+  {
+    "key": "timescaledb/ROUSER",
+    "value": "rouser"
+  },
+  {
+    "key": "timescaledb/ROPASSWORD",
+    "value": "password"
+  },
+
+  {
+    "key": "ingest/GEO_LABEL",
+    "value": "underway"
+  },
+
+  {
+    "key": "minio/MINIO_ROOT_USER",
+    "value": "admin"
+  },
+  {
+    "key": "minio/MINIO_ROOT_PASSWORD",
+    "value": "password"
+  },
+  {
+    "key": "minio/webhook_endpoint_port",
+    "value": "9010"
+  }
+]

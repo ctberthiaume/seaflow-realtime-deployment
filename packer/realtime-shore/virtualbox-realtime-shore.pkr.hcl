@@ -20,22 +20,22 @@ variable "ssh_public_key_file" {
   }
 }
 
-variable "bridge_adapter" {
+variable "host_ssh_port" {
   type        = string
-  description = "Virtualbox bridge networking host adapter name (see VBoxManage list bridgedifs)"
-  default     = "en8: Thunderbolt Ethernet"
+  description = "SSH port on host to connect to VM SSH server"
+  default     = "2223"
 }
 
 locals {
-  memory    = "10240"
-  cpus      = "2"
-  disk_size = 100000
+  memory    = "4096"
+  cpus      = "1"
+  disk_size = 40000
   build_memory = "1024"
   build_cpus = "1"
   ssh_public_key = join(" ", slice(split(" ", file("${var.ssh_public_key_file}")), 0, 2))
 }
 
-source "virtualbox-iso" "realtime-ship" {
+source "virtualbox-iso" "realtime-shore" {
   guest_os_type    = "Ubuntu_64"
   headless         = false
   iso_url          = "https://releases.ubuntu.com/20.04.3/ubuntu-20.04.3-live-server-amd64.iso"
@@ -47,7 +47,7 @@ source "virtualbox-iso" "realtime-ship" {
   ssh_timeout = "30m"
   shutdown_command = "echo 'ubuntu' | sudo -S shutdown -P now"
   http_content = {
-    "/user-data" = templatefile("${path.root}/autoinstall/user-data.pkrtpl", { ssh_public_key = local.ssh_public_key, hostanme = "ship" } )
+    "/user-data" = templatefile("${path.root}/autoinstall/user-data.pkrtpl", { ssh_public_key = local.ssh_public_key, hostanme = "shore" } )
     "/meta-data" = ""
   }
   cpus = local.build_cpus
@@ -55,7 +55,7 @@ source "virtualbox-iso" "realtime-ship" {
   vboxmanage_post = [
     ["modifyvm", "{{.Name}}", "--memory", local.memory],
     ["modifyvm", "{{.Name}}", "--cpus", local.cpus],
-    ["modifyvm", "{{.Name}}", "--nic1", "bridged", "--bridgeadapter1", var.bridge_adapter]
+    ["modifyvm", "{{.Name}}", "--natpf1", "sshforward,tcp,,${var.host_ssh_port},,22"]
   ]
   disk_size = local.disk_size
   boot_wait = "5s"
@@ -69,6 +69,6 @@ source "virtualbox-iso" "realtime-ship" {
 
 build {
   sources = [
-    "source.virtualbox-iso.realtime-ship"
+    "source.virtualbox-iso.realtime-shore"
   ]
 }
