@@ -23,8 +23,6 @@
   file:
     path: /var/lib/grafana/plugin-zips
     state: directory
-    recurse: yes
-    mode: 0755
     owner: "{{ realtime_user }}"
     group: "{{ realtime_user }}"
 

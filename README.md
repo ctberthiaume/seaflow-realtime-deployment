@@ -198,4 +198,7 @@ VBoxManage import <file.ova>
 VBoxManage startvm --type headless <vm-name>
 VBoxManage controlvm <vm-name> poweroff|savestate|acpipowerbutton|reset
 VBoxManage unregistervm <vm-name>  # remove stopped vm
+VBoxManage modifyvm <vm-name> --memory 22528
+VBoxManage modifyvm <vm-name> --cpus 3
+VBoxManage modifyvm <vm-name> --macaddress1 080027BF7D02
 ```

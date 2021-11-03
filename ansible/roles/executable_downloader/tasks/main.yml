@@ -13,6 +13,7 @@
   register: version_cmd_result
   check_mode: no
   changed_when: False
+  ignore_errors: true
 
 - debug:
     msg: "stdout={{ version_cmd_result.stdout }}"

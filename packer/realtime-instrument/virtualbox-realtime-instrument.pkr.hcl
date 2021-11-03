@@ -36,7 +36,6 @@ locals {
 }
 
 source "virtualbox-iso" "realtime-instrument" {
-  vm_name          = "realtime-instrument"
   guest_os_type    = "Ubuntu_64"
   headless         = false
   iso_url          = "https://releases.ubuntu.com/20.04.3/ubuntu-20.04.3-live-server-amd64.iso"
@@ -48,7 +47,7 @@ source "virtualbox-iso" "realtime-instrument" {
   ssh_timeout = "30m"
   shutdown_command = "echo 'ubuntu' | sudo -S shutdown -P now"
   http_content = {
-    "/user-data" = templatefile("${path.root}/autoinstall/user-data.pkrtpl", { ssh_public_key = local.ssh_public_key, hostanme = "instrument" } )
+    "/user-data" = templatefile("${path.root}/autoinstall/user-data.pkrtpl", { ssh_public_key = local.ssh_public_key, hostname = "instrument" } )
     "/meta-data" = ""
   }
   cpus = local.build_cpus

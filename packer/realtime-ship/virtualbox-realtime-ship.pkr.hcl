@@ -47,7 +47,7 @@ source "virtualbox-iso" "realtime-ship" {
   ssh_timeout = "30m"
   shutdown_command = "echo 'ubuntu' | sudo -S shutdown -P now"
   http_content = {
-    "/user-data" = templatefile("${path.root}/autoinstall/user-data.pkrtpl", { ssh_public_key = local.ssh_public_key, hostanme = "ship" } )
+    "/user-data" = templatefile("${path.root}/autoinstall/user-data.pkrtpl", { ssh_public_key = local.ssh_public_key, hostname = "ship" } )
     "/meta-data" = ""
   }
   cpus = local.build_cpus
