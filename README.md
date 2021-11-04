@@ -63,9 +63,14 @@ Because this configuration depends on the host filesystem it isn't added when th
 Create it after the VM has been imported to Virtualbox with `VBoxManage`.
 This location won't be automounted until we set that up later.
 
+Important note: the virtualbox share name can't be the same as the folder mount
+point in Ubunut. I don't know why, but the folder wouldn't automount at boot
+until I changed the name. I have no idea.
+https://askubuntu.com/questions/1355061/shared-folder-was-not-found-vboxsf
+
 ```shell
-VBoxManage sharedfolder add realtime-ship --name jobs_data --hostpath=$(pwd)/jobs_data
-VBoxManage sharedfolder add realtime-instrument --name cruisereplay_data --hostpath=$(pwd)/cruisereplay_data
+VBoxManage sharedfolder add realtime-ship --name jobsdata --hostpath=$(pwd)/jobs_data
+VBoxManage sharedfolder add realtime-instrument --name cruisereplaydata --hostpath=$(pwd)/cruisereplay_data
 ```
 
 ## Set up VirtualBox port forwarding for shore test VM
@@ -183,7 +188,7 @@ The base64 string should be around 30K in size for one set of gates.
 ```shell
 cp mydb.db clean.db
 # Delete unneeded data
-sqlite3 clean.db 'delete from vct; delete from opp; delete from outlier; vacuum;'
+sqlite3 clean.db 'delete from vct; delete from opp; delete from outlier; delete from sfl; vacuum;'
 # Make sure metadata table has correct cruise and instrument serial
 # ...
 printf "{\n    \"key\": \"seaflow-analysis/740/dbgz\",\n    \"value\": \"$(gzip -c clean.db | base64 -w 0)\"\n}\n"

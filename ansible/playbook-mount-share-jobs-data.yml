@@ -14,7 +14,7 @@
   - name: "Mount VM shared folder"
     ansible.posix.mount:
       path: "{{ jobs_data }}"
-      src: jobs_data
+      src: jobsdata
       fstype: vboxsf
       opts: "rw,relatime,iocharset=utf8,uid={{ realtime_user }},gid={{ realtime_user }}"
       state: mounted
