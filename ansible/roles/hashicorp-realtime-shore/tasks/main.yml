@@ -37,8 +37,6 @@
   file:
     path: /etc/realtime
     state: directory
-    recurse: yes
-    mode: 0755
     owner: "{{ realtime_user }}"
     group: "{{ realtime_user }}"
 
@@ -55,8 +53,6 @@
   file:
     path: /etc/realtime/scripts
     state: directory
-    recurse: yes
-    mode: 0755
     owner: "{{ realtime_user }}"
     group: "{{ realtime_user }}"
 
