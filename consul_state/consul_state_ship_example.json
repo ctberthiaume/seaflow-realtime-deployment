@@ -93,14 +93,6 @@
     "key": "caddy/grafana-site-address",
     "value": "http://localhost"
   },
-  {
-    "key": "caddy/fileserver_path",
-    "value": "/jobs_data/fileserver"
-  },
-  {
-    "key": "caddy/fileserver_file",
-    "value": "sfl.popcycle.csv.tsdata"
-  },
 
   {
     "key": "grafana/GF_SECURITY_ADMIN_PASSWORD",

@@ -81,11 +81,6 @@ job "caddy" {
 :4747 {
   reverse_proxy 127.0.0.1:4646
 }
-
-:5000 {
-  root * "{{ key "caddy/fileserver_path" }}"
-  file_server
-}
         EOH
         destination = "/local/Caddyfile"
       }
