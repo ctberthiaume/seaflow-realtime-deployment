@@ -154,21 +154,21 @@ outdir="/jobs_data/changepoint/${cruise}/${instrument}"
 
 # Copy for dashboard
 echo "copying ${outdir}/cps.dates.phys.tsdata to minio:data/changepoint/"
-rclone --config /local/rclone.config copy --checksum \
+rclone --log-level INFO --config /local/rclone.config copy --checksum \
   "${outdir}/cps.dates.phys.tsdata" \
   "minio:data/changepoint/${cruise}/${instrument}/"
 echo "copying ${outdir}/cps.dates.bio.tsdata to minio:data/changepoint/"
-rclone --config /local/rclone.config copy --checksum \
+rclone --log-level INFO --config /local/rclone.config copy --checksum \
   "${outdir}/cps.dates.bio.tsdata" \
   "minio:data/changepoint/${cruise}/${instrument}/"
 
 # Copy for sync to shore
 echo "copying ${outdir}/cps.dates.phys.tsdata to minio:sync/changepoint/"
-rclone --config /local/rclone.config copy --checksum \
+rclone --log-level INFO --config /local/rclone.config copy --checksum \
   "${outdir}/cps.dates.phys.tsdata" \
   "minio:sync/changepoint/${cruise}/${instrument}/"
 echo "copying ${outdir}/cps.dates.bio.tsdata to minio:sync/changepoint/"
-rclone --config /local/rclone.config copy --checksum \
+rclone --log-level INFO --config /local/rclone.config copy --checksum \
   "${outdir}/cps.dates.bio.tsdata" \
   "minio:sync/changepoint/${cruise}/${instrument}/"
 

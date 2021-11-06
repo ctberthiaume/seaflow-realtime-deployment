@@ -213,7 +213,7 @@ source ${NOMAD_ALLOC_DIR}/data/vars
 
 # Copy for sync to shore
 echo "copying ${outdir} to minio:sync/subsample/${outdir}"
-rclone --config /local/rclone.config copy --checksum \
+rclone --log-level INFO --config /local/rclone.config copy --checksum \
   "${outdir}" \
   "minio:sync/subsample/${cruise}/${instrument}/${timestamp}"
 

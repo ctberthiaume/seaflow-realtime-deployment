@@ -115,16 +115,16 @@ while true; do
   echo "$(date -u): uploading cruisemic files to minio:data/cruisemic/${cruise}/"
   for f in /jobs_data/cruisemic/"${cruise}"/*.tab; do
     [[ "$f" =~ .*-raw\.tab$ ]] && continue
-    echo rclone --config /local/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/"
-    rclone --config /local/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/"
+    echo rclone --log-level INFO --config /local/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/"
+    rclone --log-level INFO --config /local/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/"
   done
 
   # Copy for sync to shore
   echo "$(date -u): uploading cruisemic files to minio:sync/cruisemic/${cruise}/"
   for f in /jobs_data/cruisemic/"${cruise}"/*.tab; do
     [[ "$f" =~ .*-raw\.tab$ ]] && continue
-    echo rclone --config /local/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
-    rclone --config /local/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
+    echo rclone --log-level INFO --config /local/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
+    rclone --log-level INFO --config /local/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
   done
 
   sleep 5m

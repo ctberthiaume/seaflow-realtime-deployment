@@ -130,13 +130,13 @@ instrument="${NOMAD_META_instrument}"
 
 # Copy for dashboard data
 echo "copying /jobs_data/seaflog/${cruise}/${instrument}/${cruise}.${instrument}.tsdata to minio:data/seaflog/${cruise}.${instrument}.tsdata"
-rclone --config /local/rclone.config copy --checksum \
+rclone --log-level INFO --config /local/rclone.config copy --checksum \
   "/jobs_data/seaflog/${cruise}/${instrument}/seaflog.${cruise}.${instrument}.tsdata" \
   minio:data/seaflog/${cruise}/${instrument}/
 
 # Copy for sync to shore
 echo "copying /jobs_data/seaflog/${cruise}/${instrument}/${cruise}.${instrument}.tsdata to minio:sync/seaflog/${cruise}.${instrument}.tsdata"
-rclone --config /local/rclone.config copy --checksum \
+rclone --log-level INFO --config /local/rclone.config copy --checksum \
   "/jobs_data/seaflog/${cruise}/${instrument}/seaflog.${cruise}.${instrument}.tsdata" \
   minio:sync/seaflog/${cruise}/${instrument}/
 
