@@ -83,7 +83,7 @@ echo "sshuser=$sshuser"
 SSHPASS=$(consul kv get "seaflowconfig/${instrument}/sshpassword")
 SSHPASSWORD=${SSHPASS}
 export SSHPASS SSHPASSWORD
-echo "Got SSH password from conusl"
+echo "Got SSH password from consul"
 
 sshpass -e scp \
   -o StrictHostKeyChecking=no \
