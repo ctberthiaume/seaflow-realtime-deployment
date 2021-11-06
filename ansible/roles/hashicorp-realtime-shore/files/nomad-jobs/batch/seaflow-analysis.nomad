@@ -181,8 +181,61 @@ seaflowpy filter local -p 2 --delta -e "$rawdatadir" -d "$dbfile" -o "$outdir/${
       template {
         data = <<EOH
 #!/usr/bin/env Rscript
+library(tidyverse)
+
+#' Create a population data tibble for one quantile from the VCT
+#'
+#' @param db popcycle database file.
+#' @param quantile OPP filtering quantile to use.
+#' @param with_abundance Include volume normalized "abundance" column
+#' @return A tibble of realtime population data
+create_realtime_bio <- function(db, quantile_, with_abundance=FALSE) {
+  bio <- tibble::as_tibble(popcycle::get.stat.table(db)) %>%
+    dplyr::mutate(date=as.POSIXct(time, format="%FT%T", tz="UTC")) %>%
+    dplyr::filter(quantile == quantile_) %>%
+    dplyr::select(date, pop, n_count, abundance, diam_mid_med, diam_lwr_med) %>%
+    dplyr::rename(diam_mid=diam_mid_med, diam_lwr=diam_lwr_med)
+  if (! with_abundance) {
+    bio <- bio %>% dplyr::select(-c("abundance"))
+  }
+  return(bio)
+}
+
+#' Write population data as a TSDATA file
+#'
+#' @param bio Population dataframe created by create_realtime_bio()
+#' @param project Project identifier
+#' @param outfile Output file path
+#' @param filetype Filetype identifier
+#' @param description Long form description of this file
+write_realtime_bio_tsdata <- function(bio, project, outfile, filetype="SeaFlowPop", description="SeaFlow population data") {
+  bio <- bio %>% dplyr::rename(time=date)
+  fh <- file(outfile, open="wt")
+  writeLines(filetype, fh)
+  writeLines(project, fh)
+  writeLines(description, fh)
+  if ("abundance" %in% colnames(bio)) {
+    writeLines(paste("ISO8601 timestamp", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
+    writeLines(paste("time", "category", "integer", "float", "float", "float", sep="\t"), fh)
+    writeLines(paste("NA", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
+  } else {
+    writeLines(paste("ISO8601 timestamp", "NA", "NA", "NA", "NA", sep="\t"), fh)
+    writeLines(paste("time", "category", "integer", "float", "float", sep="\t"), fh)
+    writeLines(paste("NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
+  }
+  close(fh)
+  readr::write_delim(bio, outfile, delim="\t", col_names=TRUE, append=TRUE)
+}
 
 parser <- optparse::OptionParser(usage="usage: realtime-classify.R --db FILE --vct-dir FILE --opp-dir DIR [options]")
+# Have a separate instrument option here because in some cases the serial and
+# instrument name may differ. The serial will be used in the database to look up
+# values in the Mie theory table. If a new instrument (v2) has no entries in this
+# table the lookup will fail. To "fix" this, use instrument name to name output
+# files etc, and use a valid db serial (e.g. 740) for internal popcycle anlysis.
+parser <- optparse::add_option(parser, c("--instrument"), type="character", default="",
+                               help="Instrument name (may differ from db serial). Required.",
+                               metavar="NAME")
 parser <- optparse::add_option(parser, c("--db"), type="character", default="",
                                help="Popcycle database file. Required.",
                                metavar="FILE")
@@ -209,12 +262,13 @@ parser <- optparse::add_option(parser, c("--plot-gates-file"), type="character",
                                metavar="FILE")
 
 p <- optparse::parse_args2(parser)
-if (p$options$db == "" || p$options$opp_dir == "" || p$options$vct_dir == "") {
-  # Do nothing if db, opp_dir, vct_dir are not specified
-  message("error: must specify all of --db, --opp-dir, --vct-dir")
+if (p$options$instrument == "" || p$options$db == "" || p$options$opp_dir == "" || p$options$vct_dir == "") {
+  # Do nothing if instrument, db, opp_dir, vct_dir are not specified
+  message("error: must specify all of --instrument, --db, --opp-dir, --vct-dir")
   optparse::print_help(parser)
   quit(save="no", status=10)
 } else {
+  inst <- p$options$instrument
   db <- p$options$db
   opp_dir <- p$options$opp_dir
   vct_dir <- p$options$vct_dir
@@ -231,7 +285,7 @@ sfl_file <- p$options$sfl_file
 plot_vct_file <- p$options$plot_vct_file
 plot_gates_file <- p$options$plot_gates_file
 
-inst <- popcycle::get.inst(db)
+serial <- popcycle::get.inst(db)
 cruise <-popcycle::get.cruise(db)
 
 dated_msg <- function(...) {
@@ -243,7 +297,8 @@ message("Configuration:")
 message("--------------")
 message(paste0("db = ", db))
 message(paste0("cruise (from db) = ", cruise))
-message(paste0("serial (from db) = ", inst))
+message(paste0("serial (from db) = ", serial))
+message(paste0("instrument = ", inst))
 message(paste0("opp-dir = ", opp_dir))
 message(paste0("vct-dir = ", vct_dir))
 message(paste0("stats-no-abund-file = ", stats_no_abund_file))
@@ -269,19 +324,19 @@ if (length(files_to_gate) > 0) {
 ##########################
 if (stats_abund_file != "") {
   dated_msg("saving stats / bio file with abundance")
-  stats_abund <- popcycle::create_realtime_bio(db, 50, with_abundance=TRUE)
+  stats_abund <- create_realtime_bio(db, 2.5, with_abundance=TRUE)
   filetype <- paste0("SeaFlowPopAbundance_", inst)
   description <- paste0("SeaFlow population data for instrument ", inst)
-  popcycle::write_realtime_bio_tsdata(
+  write_realtime_bio_tsdata(
     stats_abund, stats_abund_file, project=cruise, filetype=filetype, description=description
   )
 }
 if (stats_no_abund_file != "") {
   dated_msg("saving stats / bio file without abundance")
-  stats_no_abund <- popcycle::create_realtime_bio(db, 50, with_abundance=FALSE)
+  stats_no_abund <- create_realtime_bio(db, 2.5, with_abundance=FALSE)
   filetype <- paste0("SeaFlowPop_", inst)
   description <- paste0("SeaFlow population data without abundance for instrument ", inst)
-  popcycle::write_realtime_bio_tsdata(
+  write_realtime_bio_tsdata(
     stats_no_abund, stats_no_abund_file, project=cruise, filetype=filetype, description=description
   )
 }
@@ -380,6 +435,7 @@ Rscript --slave -e 'message(packageVersion("popcycle"))'
 # Classify and produce summary image files
 echo "Classifying data in ${outdir}"
 Rscript --slave /local/cron_job.R \
+  --instrument "${instrument}" \
   --db "${dbfile}" \
   --opp-dir "${oppdir}" \
   --vct-dir "${vctdir}" \
