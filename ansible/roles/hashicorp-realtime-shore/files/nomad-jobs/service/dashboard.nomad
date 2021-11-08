@@ -45,8 +45,10 @@ job "dashboard" {
     }
 
 
-    task "pluginsetup" {
+    task "setup" {
       driver = "docker"
+
+      user = "root"
 
       lifecycle {
         hook = "prestart"
@@ -70,19 +72,53 @@ job "dashboard" {
           target = "/plugin-zips"
           source = "/var/lib/grafana/plugin-zips"
         }
+
+        mount {
+          type = "volume"
+          target = "/etc/dashboards"
+          source = "grafana_dashboards"
+        }
+
+        mount {
+          type = "volume"
+          target = "/etc/grafana/provisioning/dashboards"
+          source = "grafana_provisioning_dashboards"
+        }
       }
 
       template {
         data = <<EOH
 #!/bin/bash
-zipfile=/plugin-zips/armbrustlab-plotly-panel-0.6.0.zip
+
+# Install plugins
+zipfile=/plugin-zips/ae3e-plotly-panel-0.5.0.zip
 if [[ -f "$zipfile" ]]; then
-  echo "Installing armbrustlab-plotly-panel-0.6.0"
-  unzip "$zipfile" -d /var/lib/grafana/plugins/$(basename "$zipfile" .zip)
+  if [[ ! -d /var/lib/grafana/plugins/$(basename "$zipfile" .zip) ]]; then
+    echo "Installing $zipfile"
+    unzip "$zipfile" -d /var/lib/grafana/plugins/$(basename "$zipfile" .zip)
+    chown -R grafana /var/lib/grafana/plugins/$(basename "$zipfile" .zip)
+  fi
 else
   echo "No plugin zip file $zipfile found"
   ls -al /plugin-zips
 fi
+
+# Configure dashboard provisioning
+cat << EOHINNER > /etc/grafana/provisioning/dashboards/providers.yml
+apiVersion: 1
+
+providers:
+  - name: dashboards
+    folder: 'provisioned'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10 #how often Grafana will scan for changed dashboards
+    options:
+      path: /etc/dashboards
+EOHINNER
+
+# Set ownership for dashboard directory
+chown grafana /etc/dashboards
         EOH
         destination = "local/run.sh"
         perms = "755"
@@ -108,38 +144,24 @@ ROPASSWORD="{{ key "timescaledb/ROPASSWORD" }}"
 
       template {
         data = <<EOH
+GF_LOG_LEVEL=info
 GF_ANALYTICS_REPORTING_ENABLED=false
 GF_ANALYTICS_CHECK_FOR_UPDATES=false
 GF_AUTH_ANONYMOUS_ENABLED=true
 GF_AUTH_ANONYMOUS_ORG_NAME="{{ key "grafana/org" }}"
 GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
-GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=armbrustlab-plotly-panel
+GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ae3e-plotly-panel
 GF_SERVER_HTTP_ADDR=127.0.0.1
 GF_SERVER_DOMAIN="{{ key "grafana/domain" }}"
 GF_USERS_VIEWERS_CAN_EDIT=true
+GF_USERS_ALLOW_SIGN_UP=true
+GF_USERS_AUTO_ASSIGN_ORG_ROLE=Editor
 PGHOST=127.0.0.1
 PGPORT=5432
 ROUSER="{{ key "timescaledb/ROUSER" }}"
         EOH
         destination = "local/file.env"
         env = true
-      }
-
-      template {
-        data = <<EOH
-apiVersion: 1
-
-providers:
-- name: 'default'
-  orgId: 1
-  folder: ''
-  type: file
-  disableDeletion: false
-  updateIntervalSeconds: 10 #how often Grafana will scan for changed dashboards
-  options:
-    path: /etc/dashboards
-        EOH
-        destination = "/etc/grafana/provisioning/dashboards/providers.yml"
       }
 
       config {
@@ -163,6 +185,12 @@ providers:
           type = "volume"
           target = "/etc/grafana/provisioning/datasources"
           source = "grafana_datasources"
+        }
+
+        mount {
+          type = "volume"
+          target = "/etc/grafana/provisioning/dashboards"
+          source = "grafana_provisioning_dashboards"
         }
       }
 

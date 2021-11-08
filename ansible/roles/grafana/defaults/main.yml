@@ -1,5 +1,5 @@
 ---
 grafana_image: grafana/grafana
 grafana_version: 8.1.4
-plotly_plugin_version: 0.6.0
-plotly_plugin_checksum: "sha256:b964da532c73432a8b4b1823f3d0a653b04a7bc67dc6ebd0189de91aa36e7abd"
+plotly_plugin_version: 0.5.0
+plotly_plugin_checksum: "md5:0a42052eb7becd36b10091ad9f6dabdb"
