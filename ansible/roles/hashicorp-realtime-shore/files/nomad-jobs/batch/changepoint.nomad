@@ -47,7 +47,7 @@ job "changepoint" {
       }
 
       resources {
-        memory = 2000
+        memory = 5000
         cpu = 300
       }
 
@@ -137,9 +137,8 @@ location_constraint =
 server_side_encryption =
 
         EOH
-        destination = "/local/rclone.config"
+        destination = "/secrets/rclone.config"
         change_mode = "restart"
-        perms = "644"
       }
 
       template {
@@ -153,22 +152,22 @@ instrument=${NOMAD_META_instrument}
 outdir="/jobs_data/changepoint/${cruise}/${instrument}"
 
 # Copy for dashboard
-echo "copying ${outdir}/cps.dates.phys.tsdata to minio:data/changepoint/"
-rclone --log-level INFO --config /local/rclone.config copy --checksum \
+echo "$(date): copying ${outdir}/cps.dates.phys.tsdata to minio:data/changepoint/" 1>&2
+rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
   "${outdir}/cps.dates.phys.tsdata" \
   "minio:data/changepoint/${cruise}/${instrument}/"
-echo "copying ${outdir}/cps.dates.bio.tsdata to minio:data/changepoint/"
-rclone --log-level INFO --config /local/rclone.config copy --checksum \
+echo "$(date): copying ${outdir}/cps.dates.bio.tsdata to minio:data/changepoint/" 1>&2
+rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
   "${outdir}/cps.dates.bio.tsdata" \
   "minio:data/changepoint/${cruise}/${instrument}/"
 
 # Copy for sync to shore
-echo "copying ${outdir}/cps.dates.phys.tsdata to minio:sync/changepoint/"
-rclone --log-level INFO --config /local/rclone.config copy --checksum \
+echo "$(date): copying ${outdir}/cps.dates.phys.tsdata to minio:sync/changepoint/" 1>&2
+rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
   "${outdir}/cps.dates.phys.tsdata" \
   "minio:sync/changepoint/${cruise}/${instrument}/"
-echo "copying ${outdir}/cps.dates.bio.tsdata to minio:sync/changepoint/"
-rclone --log-level INFO --config /local/rclone.config copy --checksum \
+echo "$(date): copying ${outdir}/cps.dates.bio.tsdata to minio:sync/changepoint/" 1>&2
+rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
   "${outdir}/cps.dates.bio.tsdata" \
   "minio:sync/changepoint/${cruise}/${instrument}/"
 

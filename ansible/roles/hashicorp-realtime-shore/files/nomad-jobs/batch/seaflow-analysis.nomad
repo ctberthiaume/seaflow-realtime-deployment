@@ -458,10 +458,10 @@ cp -a "${sflfile}" /jobs_data/ingestwatch/seaflow-analysis/
 
 # # Copy for sync to shore
 [[ ! -d /jobs_data/sync/seaflow-analysis/ ]] && mkdir -p /jobs_data/sync/seaflow-analysis/
-cp -a "${statsnoabundfile}" /jobs_data/ingestwatch/seaflow-analysis/
-cp -a "${sflfile}" /jobs_data/ingestwatch/seaflow-analysis/
-cp -a "${plotvctfile}" /jobs_data/ingestwatch/seaflow-analysis/
-cp -a "${plotgatesfile}" /jobs_data/ingestwatch/seaflow-analysis/
+cp -a "${statsnoabundfile}" /jobs_data/sync/seaflow-analysis/
+cp -a "${sflfile}" /jobs_data/sync/seaflow-analysis/
+cp -a "${plotvctfile}" /jobs_data/sync/seaflow-analysis/
+cp -a "${plotgatesfile}" /jobs_data/sync/seaflow-analysis/
 
         EOH
         destination = "/local/run.sh"

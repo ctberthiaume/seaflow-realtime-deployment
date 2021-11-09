@@ -16,6 +16,7 @@
     state: present
     update_cache: yes
     cache_valid_time: 1800
+  when: not disable_apt_tasks
 
 - name: Add hashicorp Apt signing key
   become: yes
@@ -36,3 +37,4 @@
     filename: "hashicorp.list"
     state: present
     update_cache: yes
+  when: not disable_apt_tasks

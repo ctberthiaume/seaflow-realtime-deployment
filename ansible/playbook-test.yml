@@ -1,7 +1,23 @@
+# - hosts: all
+#   become: yes
+#   become_method: sudo
+#   roles:
+#     - hashicorp-realtime-shore
+#     - grafana
+
 - hosts: all
   become: yes
   become_method: sudo
-  roles:
-    - cni
-    - seaflow-transfer
-    #- hashicorp-realtime-shore
+  tasks:
+    - debug:
+        msg: " disable_apt_tasks == {{ disable_apt_tasks }}"
+      when: disable_apt_tasks
+
+    - name: "Install apt packages"
+      apt:
+        state: present
+        name:
+          - autofs
+        update_cache: yes
+        cache_valid_time: 1800
+      when: not disable_apt_tasks

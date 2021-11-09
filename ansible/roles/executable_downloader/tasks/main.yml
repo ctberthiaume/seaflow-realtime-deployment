@@ -7,6 +7,7 @@
     name: zip
     update_cache: yes
     cache_valid_time: 1800
+  when: not disable_apt_tasks
 
 - name: "{{ execdl_name }} : check if executable can be run with correct version"
   command: "bash --login -c '{{ execdl_version_cmd }}'"

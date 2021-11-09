@@ -97,7 +97,7 @@ location_constraint =
 server_side_encryption =
 
         EOH
-        destination = "/local/rclone.config"
+        destination = "/secrets/rclone.config"
         change_mode = "restart"
         perms = "644"
       }
@@ -112,19 +112,19 @@ cruise="{{ key "cruise/name" }}"
 
 while true; do
   # Copy for dashboard
-  echo "$(date -u): uploading cruisemic files to minio:data/cruisemic/${cruise}/"
+  echo "$(date): uploading cruisemic files to minio:data/cruisemic/${cruise}/" 1>&2
   for f in /jobs_data/cruisemic/"${cruise}"/*.tab; do
     [[ "$f" =~ .*-raw\.tab$ ]] && continue
-    echo rclone --log-level INFO --config /local/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/"
-    rclone --log-level INFO --config /local/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/"
+    echo $(date): rclone --log-level INFO --config /secrets/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/" 1>&2
+    rclone --log-level INFO --config /secrets/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/"
   done
 
   # Copy for sync to shore
-  echo "$(date -u): uploading cruisemic files to minio:sync/cruisemic/${cruise}/"
+  echo "$(date): uploading cruisemic files to minio:sync/cruisemic/${cruise}/" 1>&2
   for f in /jobs_data/cruisemic/"${cruise}"/*.tab; do
     [[ "$f" =~ .*-raw\.tab$ ]] && continue
-    echo rclone --log-level INFO --config /local/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
-    rclone --log-level INFO --config /local/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
+    echo $(date): rclone --log-level INFO --config /secrets/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/" 1>&2
+    rclone --log-level INFO --config /secrets/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
   done
 
   sleep 5m

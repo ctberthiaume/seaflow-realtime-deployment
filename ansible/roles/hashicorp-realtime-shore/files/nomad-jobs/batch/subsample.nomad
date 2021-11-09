@@ -197,7 +197,7 @@ location_constraint =
 server_side_encryption =
 
         EOH
-        destination = "/local/rclone.config"
+        destination = "/secrets/rclone.config"
         change_mode = "restart"
         perms = "644"
       }
@@ -212,8 +212,8 @@ set -e
 source ${NOMAD_ALLOC_DIR}/data/vars
 
 # Copy for sync to shore
-echo "copying ${outdir} to minio:sync/subsample/${outdir}"
-rclone --log-level INFO --config /local/rclone.config copy --checksum \
+echo "$(date): copying ${outdir} to minio:sync/subsample/${outdir}" 1>&2
+rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
   "${outdir}" \
   "minio:sync/subsample/${cruise}/${instrument}/${timestamp}"
 

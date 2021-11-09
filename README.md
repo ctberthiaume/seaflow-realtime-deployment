@@ -194,6 +194,21 @@ sqlite3 clean.db 'delete from vct; delete from opp; delete from outlier; delete 
 printf "{\n    \"key\": \"seaflow-analysis/740/dbgz\",\n    \"value\": \"$(gzip -c clean.db | base64 -w 0)\"\n}\n"
 ```
 
+## Add a string with newlines to consul JSON
+
+JSON strings can't contain newline characters. They must be escaped as "\\n".
+Use this blurb to encode such a strings.
+
+```shell
+cat textfile | python3 -c 'import sys; sys.stdout.write(sys.stdin.read().replace("\n", "\\\\n"))'
+```
+
+And this one to decode "\n" once the JSON value is retrieved (e.g. with consul key get)
+
+```shell
+consul key get string-with-newlines | python3 -c 'import sys; sys.stdout.write(sys.stdin.read().replace("\\n", "\n"))'
+```
+
 ## Useful VBoxManage commands
 
 ```sh

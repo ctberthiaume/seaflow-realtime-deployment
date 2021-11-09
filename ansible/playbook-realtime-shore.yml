@@ -1,4 +1,10 @@
 - hosts: all
+  tasks:
+    - debug:
+      msg: " disable_apt_tasks == {{ disable_apt_tasks }}"
+    when: disable_apt_tasks
+
+- hosts: all
   become: yes
   become_method: sudo
   tasks:
@@ -41,6 +47,7 @@
           - zip
         update_cache: yes
         cache_valid_time: 1800
+      when: not disable_apt_tasks
 
 - hosts: all
   become: yes

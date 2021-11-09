@@ -12,6 +12,7 @@
     state: present
     update_cache: yes
     cache_valid_time: 1800
+  when: not disable_apt_tasks
 
 - name: Get vault version
   command: vault -version

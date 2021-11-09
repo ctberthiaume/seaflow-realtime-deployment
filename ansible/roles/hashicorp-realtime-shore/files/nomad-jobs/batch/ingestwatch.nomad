@@ -56,7 +56,7 @@ location_constraint =
 server_side_encryption =
 
         EOH
-        destination = "/local/rclone.config"
+        destination = "/secrets/rclone.config"
         change_mode = "restart"
         perms = "644"
       }
@@ -70,7 +70,7 @@ set -e
 # Copy to minio
 find "/jobs_data/ingestwatch" \
   -type f -name "*.tsdata" \
-  -exec bash -c "echo copying {} to minio/data; rclone --log-level INFO --config /local/rclone.config copy --checksum {} minio:data/" \;
+  -exec bash -c "echo $(date): copying {} to minio/data 1>&2; rclone --log-level INFO --config /secrets/rclone.config copy --checksum {} minio:data/" \;
 
         EOH
         destination = "local/run.sh"

@@ -114,7 +114,7 @@ location_constraint =
 server_side_encryption =
 
         EOH
-        destination = "/local/rclone.config"
+        destination = "/secrets/rclone.config"
         change_mode = "restart"
         perms = "644"
       }
@@ -129,14 +129,14 @@ cruise="{{ key "cruise/name" }}"
 instrument="${NOMAD_META_instrument}"
 
 # Copy for dashboard data
-echo "copying /jobs_data/seaflog/${cruise}/${instrument}/${cruise}.${instrument}.tsdata to minio:data/seaflog/${cruise}.${instrument}.tsdata"
-rclone --log-level INFO --config /local/rclone.config copy --checksum \
+echo "$(date): copying /jobs_data/seaflog/${cruise}/${instrument}/${cruise}.${instrument}.tsdata to minio:data/seaflog/${cruise}.${instrument}.tsdata" 1>&2
+rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
   "/jobs_data/seaflog/${cruise}/${instrument}/seaflog.${cruise}.${instrument}.tsdata" \
   minio:data/seaflog/${cruise}/${instrument}/
 
 # Copy for sync to shore
-echo "copying /jobs_data/seaflog/${cruise}/${instrument}/${cruise}.${instrument}.tsdata to minio:sync/seaflog/${cruise}.${instrument}.tsdata"
-rclone --log-level INFO --config /local/rclone.config copy --checksum \
+echo "$(date): copying /jobs_data/seaflog/${cruise}/${instrument}/${cruise}.${instrument}.tsdata to minio:sync/seaflog/${cruise}.${instrument}.tsdata" 1>&2
+rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
   "/jobs_data/seaflog/${cruise}/${instrument}/seaflog.${cruise}.${instrument}.tsdata" \
   minio:sync/seaflog/${cruise}/${instrument}/
 

@@ -10,3 +10,4 @@ local_jobs_data: /var/local/nomad/local_jobs_data
 # Location on realtime machine where nomad will store operation data
 nomad_data: /var/local/nomad_data
 realtime_user: ubuntu
+disable_apt_tasks: false  # set to disable all tasks that communicate with apt repos
