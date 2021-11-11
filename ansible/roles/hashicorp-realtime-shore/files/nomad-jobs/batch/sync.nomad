@@ -88,7 +88,7 @@ set -e
 # Convert \\n to true newlines in SSH private key file
 # Would put this back in /secrets but can't write there from task
 python3 -c 'import sys; sys.stdout.write(sys.stdin.read().replace("\\n", "\n"))' < /secrets/sshprivatekey > /local/sshprivatekey2
-chmod 400 /local/sshprivatekey2
+chmod 600 /local/sshprivatekey2
 
 # Cache data to sync
 rclone --log-level INFO --config /secrets/rclone.config copy --checksum minio:sync/ /jobs_data/sync/
