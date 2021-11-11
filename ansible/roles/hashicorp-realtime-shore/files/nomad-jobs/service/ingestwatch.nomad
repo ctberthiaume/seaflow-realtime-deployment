@@ -6,19 +6,7 @@ variable "realtime_user" {
 job "ingestwatch" {
   datacenters = ["dc1"]
 
-  type = "batch"
-
-  periodic {
-    cron = "*/15 * * * *"  // every 15 minutes
-    prohibit_overlap = true
-    time_zone = "UTC"
-  }
-
-  # No restart attempts
-  reschedule {
-    attempts = 0
-    unlimited = false
-  }
+  type = "service"
 
   group "ingestwatch" {
     count = 1
@@ -65,12 +53,30 @@ server_side_encryption =
         data = <<EOH
 #!/usr/bin/env bash
 
-set -e
+cruise={{ key "cruise/name" }}
 
-# Copy to minio
-find "/jobs_data/ingestwatch" \
-  -type f -name "*.tsdata" \
-  -exec bash -c "echo $(date): copying {} to minio/data 1>&2; rclone --log-level INFO --config /secrets/rclone.config copy --checksum {} minio:data/" \;
+while true; do
+  # Copy files in ingestwatch to minio
+  if [[ -d /jobs_data/ingestwatch ]]; then
+    echo "$(date): copying /jobs_data/ingestwatch/*.tsdata to minio/data" 1>&2
+    find /jobs_data/ingestwatch \
+      -type f -name "*.tsdata" \
+      -exec bash -c "echo $(date): copying {} to minio/data 1>&2; rclone --log-level INFO --config /secrets/rclone.config copy --checksum {} minio:data/" \;
+  else
+    echo "$(date): /jobs_data/ingestwatch not present, skippig upload" 1>&2
+  fi
+
+  # Copy cruisemic to minio
+  geofile=/jobs_data/cruisemic/${cruise}/${cruise}-geo.tab
+  if [[ -e "${geofile}" ]]; then
+    echo "$(date): copying ${geofile} to minio/data" 1>&2
+    rclone --log-level INFO --config /secrets/rclone.config copy --checksum ${geofile} minio:data/cruisemic/
+  else
+    echo "$(date): ${geofile} not present, skipping upload" 1>&2
+  fi
+
+  sleep {{ key "ingestwatch/interval" }}
+done
 
         EOH
         destination = "local/run.sh"
