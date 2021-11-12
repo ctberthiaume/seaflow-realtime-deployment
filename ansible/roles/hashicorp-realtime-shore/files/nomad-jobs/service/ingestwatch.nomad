@@ -69,9 +69,9 @@ while true; do
   # Copy cruisemic to minio
   geofile=/jobs_data/cruisemic/${cruise}/${cruise}-geo.tab
   if [[ -e "${geofile}" ]]; then
-    echo "$(date): copying ${geofile} to minio/data" 1>&2
+    echo "$(date): copying ${geofile} to minio/data/cruisemic/${cruise}/" 1>&2
     rclone --log-level INFO --config /secrets/rclone.config copy --checksum ${geofile} minio:data/cruisemic/${cruise}/
-    echo "$(date): copying ${geofile} to minio/sync" 1>&2
+    echo "$(date): copying ${geofile} to minio/sync/cruisemic/${cruise}/" 1>&2
     rclone --log-level INFO --config /secrets/rclone.config copy --checksum ${geofile} minio:sync/cruisemic/${cruise}/
   else
     echo "$(date): ${geofile} not present, skipping upload" 1>&2
