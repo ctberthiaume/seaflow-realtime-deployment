@@ -83,8 +83,6 @@ CRUISE="{{ key "cruise/name" }}"
 #!/usr/bin/env bash
 # Sync to shore
 
-set -e
-
 # Convert \\n to true newlines in SSH private key file
 # Would put this back in /secrets but can't write there from task
 python3 -c 'import sys; sys.stdout.write(sys.stdin.read().replace("\\n", "\n"))' < /secrets/sshprivatekey > /local/sshprivatekey2
@@ -101,7 +99,7 @@ ssh -i /local/sshprivatekey2 -o "StrictHostKeyChecking no" -o "UserKnownHostsFil
 
 rsync -e 'ssh -i /local/sshprivatekey2 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null"' -au --stats \
   /jobs_data/sync/ \
-  "ubuntu@${SYNC_HOST}:realtime-sync/${CRUISE}"
+  "ubuntu@${SYNC_HOST}:realtime-sync/${CRUISE}" 1>&2
 
         EOH
         destination = "local/run.sh"
