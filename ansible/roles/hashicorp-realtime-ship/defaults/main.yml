@@ -1,4 +1,0 @@
-# Location on realtime machine where nomad jobs will store persistent data
-jobs_data: /var/local/nomad/jobs_data
-samba_mount_point: /mnt/seaflow
-realtime_user: ubuntu
