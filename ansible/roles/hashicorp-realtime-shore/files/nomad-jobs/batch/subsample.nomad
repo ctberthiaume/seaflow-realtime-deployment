@@ -56,15 +56,15 @@ job "subsample" {
 #!/usr/bin/env bash
 
 # Get cruise info
-echo "cruise=$(consul kv get cruise/name)" >> ${NOMAD_ALLOC_DIR}/data/vars
-echo "start=$(consul kv get cruise/start)" >> ${NOMAD_ALLOC_DIR}/data/vars
+echo "cruise={{ key cruise/name }}" >> ${NOMAD_ALLOC_DIR}/data/vars
+echo "start={{ key cruise/start }}" >> ${NOMAD_ALLOC_DIR}/data/vars
 
 # Get instrument name
 echo "instrument=${NOMAD_META_instrument}" >> ${NOMAD_ALLOC_DIR}/data/vars
 
 timestamp="$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
 echo "timestamp=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"  >> ${NOMAD_ALLOC_DIR}/data/vars
-echo "outdir=/jobs_data/subsample/${cruise}/${instrument}/${timestamp}" >> ${NOMAD_ALLOC_DIR}/data/vars
+echo "outdir=/jobs_data/subsample/{{ key cruise/name }}/${NOMAD_META_instrument}/${timestamp}" >> ${NOMAD_ALLOC_DIR}/data/vars
 
 # Get subsample parameters for this instrument as shell variable assignments
 consul kv get -recurse "subsample/${NOMAD_META_instrument}/" | \
