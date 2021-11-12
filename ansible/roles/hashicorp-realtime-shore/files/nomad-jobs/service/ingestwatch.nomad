@@ -63,14 +63,16 @@ while true; do
       -type f -name "*.tsdata" \
       -exec bash -c "echo $(date): copying {} to minio/data 1>&2; rclone --log-level INFO --config /secrets/rclone.config copy --checksum {} minio:data/" \;
   else
-    echo "$(date): /jobs_data/ingestwatch not present, skippig upload" 1>&2
+    echo "$(date): /jobs_data/ingestwatch not present, skipping upload" 1>&2
   fi
 
   # Copy cruisemic to minio
   geofile=/jobs_data/cruisemic/${cruise}/${cruise}-geo.tab
   if [[ -e "${geofile}" ]]; then
     echo "$(date): copying ${geofile} to minio/data" 1>&2
-    rclone --log-level INFO --config /secrets/rclone.config copy --checksum ${geofile} minio:data/cruisemic/
+    rclone --log-level INFO --config /secrets/rclone.config copy --checksum ${geofile} minio:data/cruisemic/${cruise}/
+    echo "$(date): copying ${geofile} to minio/sync" 1>&2
+    rclone --log-level INFO --config /secrets/rclone.config copy --checksum ${geofile} minio:sync/cruisemic/${cruise}/
   else
     echo "$(date): ${geofile} not present, skipping upload" 1>&2
   fi
