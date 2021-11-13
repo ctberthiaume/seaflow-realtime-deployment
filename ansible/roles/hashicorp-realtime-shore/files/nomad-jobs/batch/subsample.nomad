@@ -55,16 +55,18 @@ job "subsample" {
         data = <<EOH
 #!/usr/bin/env bash
 
-# Get cruise info
-echo "cruise={{ key cruise/name }}" >> ${NOMAD_ALLOC_DIR}/data/vars
-echo "start={{ key cruise/start }}" >> ${NOMAD_ALLOC_DIR}/data/vars
-
-# Get instrument name
-echo "instrument=${NOMAD_META_instrument}" >> ${NOMAD_ALLOC_DIR}/data/vars
-
+# Get job info
+cruise="{{ key "cruise/name" }}"
+start="{{ key "cruise/start" }}"
+instrument=${NOMAD_META_instrument}
 timestamp="$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
-echo "timestamp=$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"  >> ${NOMAD_ALLOC_DIR}/data/vars
-echo "outdir=/jobs_data/subsample/{{ key cruise/name }}/${NOMAD_META_instrument}/${timestamp}" >> ${NOMAD_ALLOC_DIR}/data/vars
+outdir=/jobs_data/subsample/${cruise}/${instrument}/${timestamp}
+
+echo "cruise=${cruise}" >> ${NOMAD_ALLOC_DIR}/data/vars
+echo "start=${start}" >> ${NOMAD_ALLOC_DIR}/data/vars
+echo "instrument=${instrument}" >> ${NOMAD_ALLOC_DIR}/data/vars
+echo "timestamp=${timestamp}"  >> ${NOMAD_ALLOC_DIR}/data/vars
+echo "outdir=${outdir}" >> ${NOMAD_ALLOC_DIR}/data/vars
 
 # Get subsample parameters for this instrument as shell variable assignments
 consul kv get -recurse "subsample/${NOMAD_META_instrument}/" | \
@@ -143,14 +145,14 @@ seaflowpy evt sample \
   --outpath "${outdir}/last-${sample_tail_hours}-hours.beadSample.parquet" \
   "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt"
 
-# Bead finder
-seaflowpy evt beads \
-  --cruise "${cruise}" \
-  --min-fsc "${bead_finder_min_fsc}" \
-  --min-pe "${bead_finder_min_pe}" \
-  --verbose \
-  --out-dir "${outdir}/last-${sample_tail_hours}-hours.beads" \
-  "${outdir}/last-${sample_tail_hours}-hours.beadSample.parquet"
+# # Bead finder
+# seaflowpy evt beads \
+#   --cruise "${cruise}" \
+#   --min-fsc "${bead_finder_min_fsc}" \
+#   --min-pe "${bead_finder_min_pe}" \
+#   --verbose \
+#   --out-dir "${outdir}/last-${sample_tail_hours}-hours.beads" \
+#   "${outdir}/last-${sample_tail_hours}-hours.beadSample.parquet"
 
         EOH
         destination = "/local/run.sh"
