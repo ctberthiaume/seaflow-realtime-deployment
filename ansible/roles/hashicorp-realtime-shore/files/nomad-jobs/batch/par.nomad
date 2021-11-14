@@ -206,16 +206,16 @@ set -e
 cruise="{{ key "cruise/name" }}"
 
 # Copy for dashboard data
-echo "$(date): copying /jobs_data/par/${cruise}/par_${cruise}.tsdata to minio:data/par/${cruise}/par_${cruise}.tsdata" 1>&2
+echo "$(date): copying /jobs_data/par/${cruise}/par_${cruise}.tsdata to minio:data/par/${cruise}/" 1>&2
 rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
   "/jobs_data/par/${cruise}/par_${cruise}.tsdata" \
-  minio:data/par/${cruise}/par_${cruise}.tsdata
+  minio:data/par/${cruise}/
 
 # Copy for sync to shore
-echo "$(date): copying /jobs_data/par/${cruise}/par_${cruise}.tsdata to minio:sync/par/par_${cruise}.tsdata" 1>&2
+echo "$(date): copying /jobs_data/par/${cruise}/par_${cruise}.tsdata to minio:sync/par/" 1>&2
 rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
   "/jobs_data/par/${cruise}/par_${cruise}.tsdata" \
-  minio:sync/par/${cruise}/par_${cruise}.tsdata
+  minio:sync/par/${cruise}/
 
         EOH
         destination = "local/run.sh"
