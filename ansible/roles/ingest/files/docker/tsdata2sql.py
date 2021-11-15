@@ -65,8 +65,8 @@ def sql_cmd(verbose, input_file):
     # Set up logging
     ch = logging.StreamHandler()
     if verbose:
-        logger.setLevel(logging.INFO)
-        ch.setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)
+        ch.setLevel(logging.DEBUG)
     formatter = logging.Formatter(
         "%(asctime)s.%(msecs)03dZ - %(filename)s - %(levelname)s - %(message)s",
         "%Y-%m-%dT%H:%M:%S",
@@ -384,10 +384,13 @@ def create_tables_and_views(dbname, table, columns, types):
                         elif col == c["LAT_LABEL"] or col == c["LON_LABEL"]:
                             # rename lat / lon in table to distinguish from joined
                             # coords
-                            col = table + "_" + col
+                            col_alias = table + "_" + col
+                            item = sql.SQL("a.{} AS {}").format(sql.Identifier(col), sql.Identifier(col_alias))
                         elif tsdatatype == "time" and col == c["TIME_LABEL"]:
                             time_i = i
-                        item = sql.SQL("a.{}").format(sql.Identifier(col))
+                            item = sql.SQL("a.{}").format(sql.Identifier(col))
+                        else:
+                            item = sql.SQL("a.{}").format(sql.Identifier(col))
                         select_sql_parts.append(item)
                         i += 1
                     select_sql_parts.append(
