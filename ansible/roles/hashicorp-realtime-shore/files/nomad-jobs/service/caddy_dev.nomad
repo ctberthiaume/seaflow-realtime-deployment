@@ -58,6 +58,11 @@ job "caddy" {
         #cap_add = ["net_bind_service"]
       }
 
+      resources {
+        memory = 50
+        cpu = 300
+      }
+
       template {
         data = <<EOH
 # grafana

@@ -45,6 +45,11 @@ job "ingest" {
         }
       }
 
+      resources {
+        memory = 100
+        cpu = 300
+      }
+
       template {
         data = <<EOH
 MC_HOST_minio="http://{{key "minio/MINIO_ROOT_USER"}}:{{key "minio/MINIO_ROOT_PASSWORD"}}@127.0.0.1:9000"

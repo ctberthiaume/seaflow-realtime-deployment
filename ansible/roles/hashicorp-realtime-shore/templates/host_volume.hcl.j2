@@ -4,6 +4,6 @@ client {
   }
 
   host_volume "minio" {
-    path = "/var/lib/minio"
+    path = "{{ minio_data }}"
   }
 }

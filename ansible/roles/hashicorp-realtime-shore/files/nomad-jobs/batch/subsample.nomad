@@ -47,7 +47,7 @@ job "subsample" {
       }
 
       resources {
-        memory = 300
+        memory = 50
         cpu = 300
       }
 
@@ -93,7 +93,7 @@ consul kv get -recurse "subsample/${NOMAD_META_instrument}/" | \
       }
 
       resources {
-        memory = 2000
+        memory = 1500
         cpu = 300
       }
 
@@ -181,7 +181,7 @@ seaflowpy evt sample \
       }
 
       resources {
-        memory = 500
+        memory = 200
         cpu = 300
       }
 

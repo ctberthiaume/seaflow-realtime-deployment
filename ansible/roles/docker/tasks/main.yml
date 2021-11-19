@@ -64,6 +64,41 @@
     cache_valid_time: 1800
   when: not disable_apt_tasks
 
+- name: "Check for docker data directory {{ docker_data }}"
+  become: no
+  stat:
+    path: "{{ docker_data }}"
+  register: register_docker_data
+
+- debug:
+    msg: " register_docker_data.stat.exists == {{ register_docker_data.stat.exists }}"
+
+- name: "Create docker data directory at"
+  when: not register_docker_data.stat.exists
+  block:
+    - name: Stop docker
+      systemd:
+        name: docker
+        state: stopped
+
+    - name: Create docker data directory
+      become: yes
+      ansible.posix.synchronize:
+        src: /var/lib/docker/
+        dest: "{{ docker_data }}/"
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Modify docker config to point to new data directory
+      become: yes
+      template:
+        src: "daemon.json.j2"
+        dest: "/etc/docker/daemon.json"
+
+    - name: Start docker
+      systemd:
+        name: docker
+        state: started
+
 - name: Add the ansible user to docker group
   become: yes
   user:

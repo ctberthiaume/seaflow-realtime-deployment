@@ -35,6 +35,6 @@
     owner: minio
     group: minio
   loop:
-    - "/var/lib/minio"
-    - "/var/lib/minio/data"
-    - "/var/lib/minio/events"
+    - "{{ minio_data }}/minio"
+    - "{{ minio_data }}/minio/data"
+    - "{{ minio_data }}/minio/events"

@@ -30,6 +30,11 @@ job "ingestwatch" {
         command = "/local/run.sh"
       }
 
+      resources {
+        memory = 50
+        cpu = 300
+      }
+
       template {
         data = <<EOH
 [minio]

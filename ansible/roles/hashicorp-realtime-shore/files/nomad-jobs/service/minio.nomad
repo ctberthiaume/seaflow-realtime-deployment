@@ -94,7 +94,7 @@ MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
       }
 
       resources {
-        memory = 1000
+        memory = 500
         cpu = 500
       }
     }
@@ -110,6 +110,11 @@ MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
       driver = "exec"
       config {
         command = "/local/setup.sh"
+      }
+
+      resources {
+        memory = 200
+        cpu = 500
       }
 
       template {

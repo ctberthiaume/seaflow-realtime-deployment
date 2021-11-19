@@ -49,13 +49,18 @@ job "caddy" {
         command = "caddy"
         args = [ "run", "--environ", "--config", "/local/Caddyfile" ]
         network_mode = "host"
- 
+
         mount {
           type = "volume"
           target = "/data"
           source = "caddy_data"
         }
         #cap_add = ["net_bind_service"]
+      }
+
+      resources {
+        memory = 50
+        cpu = 300
       }
 
       template {

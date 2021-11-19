@@ -1,3 +1,4 @@
 ---
 
 nomad_data: /var/local/nomad_data
+nomad_version: 1.1.7

@@ -38,6 +38,7 @@ job "webhook" {
 
     task "webhook" {
       driver = "exec"
+
       config {
         command = "webhook"
         args = [
@@ -49,6 +50,11 @@ job "webhook" {
       }
 
       user = var.realtime_user
+
+      resources {
+        memory = 50
+        cpu = 300
+      }
 
       volume_mount {
         volume = "jobs_data"

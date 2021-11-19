@@ -125,7 +125,7 @@ chown grafana /etc/dashboards
       }
 
       resources {
-        memory = 500
+        memory = 200
         cpu = 300
       }
     }
@@ -148,7 +148,7 @@ GF_LOG_LEVEL=info
 GF_ANALYTICS_REPORTING_ENABLED=false
 GF_ANALYTICS_CHECK_FOR_UPDATES=false
 GF_AUTH_ANONYMOUS_ENABLED=true
-GF_AUTH_ANONYMOUS_ORG_NAME="{{ key "grafana/org" }}"
+GF_AUTH_ANONYMOUS_ORG_NAME="Main Org."
 GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
 GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ae3e-plotly-panel
 GF_SERVER_HTTP_ADDR=127.0.0.1
@@ -195,7 +195,7 @@ ROUSER="{{ key "timescaledb/ROUSER" }}"
       }
 
       resources {
-        memory = 1000
+        memory = 300
         cpu = 2000
       }
     }
@@ -230,7 +230,7 @@ TIMESCALEDB_TELEMETRY=off
       }
 
       resources {
-        memory = 1000
+        memory = 300
         cpu = 300
       }
     }

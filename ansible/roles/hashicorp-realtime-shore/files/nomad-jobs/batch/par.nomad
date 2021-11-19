@@ -174,7 +174,7 @@ if __name__ == "__main__":
       }
 
       resources {
-        memory = 500
+        memory = 50
         cpu = 300
       }
 

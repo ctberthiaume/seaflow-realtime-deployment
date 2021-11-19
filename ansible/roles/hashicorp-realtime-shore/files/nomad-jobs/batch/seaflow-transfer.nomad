@@ -46,7 +46,7 @@ job "seaflow-transfer" {
       }
 
       resources {
-        memory = 500
+        memory = 100
         cpu = 300
       }
 

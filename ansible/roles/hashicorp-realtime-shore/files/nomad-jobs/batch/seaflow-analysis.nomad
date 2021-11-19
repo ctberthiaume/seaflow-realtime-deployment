@@ -47,7 +47,7 @@ job "seaflow-analysis" {
       }
 
       resources {
-        memory = 300
+        memory = 50
         cpu = 300
       }
 
@@ -95,6 +95,69 @@ consul kv get "seaflow-analysis/${NOMAD_META_instrument}/dbgz" | \
 
       template {
         data = <<EOH
+CREATE VIEW IF NOT EXISTS stat AS
+  SELECT
+    opp.file as file,
+    sfl.date as time,
+    sfl.lat as lat,
+    sfl.lon as lon,
+    sfl.ocean_tmp as temp,
+    sfl.salinity as salinity,
+    sfl.par as par,
+    vct.quantile as quantile,
+    vct.pop as pop,
+    sfl.stream_pressure as stream_pressure,
+    sfl.file_duration as file_duration,
+    sfl.event_rate as event_rate,
+    opp.opp_evt_ratio as opp_evt_ratio,
+    vct.count as n_count,
+    vct.chl_1q as chl_1q,
+    vct.chl_med as chl_med,
+    vct.chl_3q as chl_3q,
+    vct.pe_1q as pe_1q,
+    vct.pe_med as pe_med,
+    vct.pe_3q as pe_3q,
+    vct.fsc_1q as fsc_1q,
+    vct.fsc_med as fsc_med,
+    vct.fsc_3q as fsc_3q,
+    vct.diam_lwr_1q as diam_lwr_1q,
+    vct.diam_lwr_med as diam_lwr_med,
+    vct.diam_lwr_3q as diam_lwr_3q,
+    vct.diam_mid_1q as diam_mid_1q,
+    vct.diam_mid_med as diam_mid_med,
+    vct.diam_mid_3q as diam_mid_3q,
+    vct.diam_upr_1q as diam_upr_1q,
+    vct.diam_upr_med as diam_upr_med,
+    vct.diam_upr_3q as diam_upr_3q,
+    vct.Qc_lwr_1q as Qc_lwr_1q,
+    vct.Qc_lwr_med as Qc_lwr_med,
+    vct.Qc_lwr_mean as Qc_lwr_mean,
+    vct.Qc_lwr_3q as Qc_lwr_3q,
+    vct.Qc_mid_1q as Qc_mid_1q,
+    vct.Qc_mid_med as Qc_mid_med,
+    vct.Qc_mid_mean as Qc_mid_mean,
+    vct.Qc_mid_3q as Qc_mid_3q,
+    vct.Qc_upr_1q as Qc_upr_1q,
+    vct.Qc_upr_med as Qc_upr_med,
+    vct.Qc_upr_mean as Qc_upr_mean,
+    vct.Qc_upr_3q as Qc_upr_3q
+  FROM
+    opp, vct, sfl
+  WHERE
+    opp.quantile == vct.quantile
+    AND
+    opp.file == vct.file
+    AND
+    opp.file == sfl.file
+  ORDER BY
+    time, pop ASC;
+
+        EOH
+        destination = "/local/stat.sql"
+      }
+
+      template {
+        data = <<EOH
 #!/usr/bin/env bash
 # Perform SeaFlow setup and filtering
 
@@ -127,6 +190,10 @@ if [ ! -e "$dbfile" ]; then
   echo "Creating $dbfile with cruise=$cruise and inst=$serial"
   seaflowpy db create -c "$cruise" -s "$serial" -d "$dbfile" || exit $?
 fi
+
+# Fix stat table to not care if there are more than one filter params defined
+sqlite3 "$dbfile" 'drop view stat'
+sqlite3 "$dbfile" < /local/stat.sql
 
 # Overwrite any existing filter and gating params with the base db pulled from
 # consul
