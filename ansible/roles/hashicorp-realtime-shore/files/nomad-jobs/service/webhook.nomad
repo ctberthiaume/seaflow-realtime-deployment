@@ -52,7 +52,7 @@ job "webhook" {
       user = var.realtime_user
 
       resources {
-        memory = 50
+        memory = 200
         cpu = 300
       }
 

@@ -46,7 +46,7 @@ job "ingest" {
       }
 
       resources {
-        memory = 100
+        memory = 500
         cpu = 300
       }
 

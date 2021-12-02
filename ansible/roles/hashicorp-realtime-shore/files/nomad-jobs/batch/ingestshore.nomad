@@ -73,7 +73,7 @@ pop[, "n_per_uL"] <- pop[, "n_count"] / pop[, "volume_large"]
 pop[pop_idx, "n_per_uL"] <- pop[pop_idx, "n_count"] / pop[pop_idx, "volume_small"]
 
 pop <- pop %>%
-  dplyr::select(time, pop, n_count, n_per_uL, diam_mid, diam_lwr) %>%
+  dplyr::select(time, pop, n_count, n_per_uL, diam_mid, diam_lwr, correction) %>%
   dplyr::rename(abundance=n_per_uL)
 
 # Get filetype and project
@@ -88,9 +88,9 @@ pop_file_tsdata <- paste0(tools::file_path_sans_ext(pop_file), ".abund-added.tsd
 writeLines(filetype, stdout())
 writeLines(project, stdout())
 writeLines("SeaFlow pop data", stdout())
-writeLines(paste("ISO8601 timestamp",	"NA",	"NA",	"NA",	"NA",	"NA", sep="\t"), stdout())
-writeLines(paste("time",	"category",	"integer",	"float",	"float",	"float", sep="\t"), stdout())
-writeLines(paste("NA", "NA", "NA",	"NA",	"NA",	"NA", sep="\t"), stdout())
+writeLines(paste("ISO8601 timestamp",	"NA",	"NA",	"NA",	"NA",	"NA", "NA", sep="\t"), stdout())
+writeLines(paste("time",	"category",	"integer",	"float",	"float",	"float", "float", sep="\t"), stdout())
+writeLines(paste("NA", "NA", "NA",	"NA",	"NA",	"NA", "NA", sep="\t"), stdout())
 readr::write_delim(pop, stdout(), delim="\t", col_names=TRUE, append=TRUE)
 
         EOH
@@ -104,32 +104,33 @@ readr::write_delim(pop, stdout(), delim="\t", col_names=TRUE, append=TRUE)
 #!/usr/bin/env bash
 
 set -e
+shopt -s nullglob
 
 [[ -d /jobs_data/realtime-sync/ ]] || exit
 
 [[ -d /alloc/data/cache ]] && rm -rf /alloc/data/cache
-mkdir /alloc/data/cache
 
-for dir in /jobs_data/realtime-sync/*; do
-  [[ ! -d "$dir" ]] && continue
-  cruise=$(basename "$dir")
-  mkdir "/alloc/data/cache/${cruise}"
+cp -r /jobs_data/realtime-sync/ /alloc/data/cache
 
-  find /jobs_data/realtime-sync/ -type f \( -name '*.tsdata' -o -name '*.tab' \) -exec cp {} "/alloc/data/cache/${cruise}/" \;
+# Erase files which aren't tsdata files
+find /alloc/data/cache/ -type f -not \( -name '*.tsdata' -o -name '*.tab' \) -exec rm {} \;
 
-  for sflfile in "/alloc/data/cache/${cruise}/"sfl.popcycle.*.tsdata; do
-    echo "adding abundance for $sflfile"
-    f=$(basename "${sflfile}")
-    end=$(echo "${f}" | sed -e 's/sfl.popcycle.//')
-    popfile="/alloc/data/cache/${cruise}/stats-no-abund.${end}"
-    newpopfile="/alloc/data/cache/${cruise}/stats-abund.${end}"
-    echo "using $popfile, $newpopfile"
-    if [[ -e "$popfile" ]]; then
-      Rscript --slave /local/fixrealtime.R "$sflfile" "$popfile" > "$newpopfile"
-      echo "created $newpopfile"
-    fi
-  done
-done
+while IFS= read -r sflfile; do
+  echo "adding abundance for $sflfile" 1>&2
+  dir=$(dirname "$sflfile")
+  f=$(basename "${sflfile}")
+  end=$(echo "${f}" | sed -e 's/sfl.popcycle.//')
+  popfile="${dir}/stats-no-abund.${end}"
+  newpopfile="${dir}/stats-abund.${end}"
+  echo "attempting to use $popfile, $newpopfile" 1>&2
+  if [[ -e "$popfile" ]]; then
+    echo "found $popfile" 1>&2
+    Rscript --slave /local/fixrealtime.R "$sflfile" "$popfile" > "$newpopfile"
+    echo "created $newpopfile" 1>&2
+    echo "erasing $popfile" 1>&2
+    rm "$popfile"
+  fi
+done < <(find /alloc/data/cache/ -type f -name 'sfl.popcycle.*.tsdata')
 
         EOH
         destination = "/local/run.sh"
@@ -194,34 +195,21 @@ geolabel={{ key "ingest/GEO_LABEL" }}
 
 cd /alloc/data/cache
 
-for cruise in *; do
-  [[ ! -d "$cruise" ]] && continue
+# Load geo file with lat/lon first
+# Assume no joker put a newline in the file name
+while IFS= read -r f; do
+  echo "checking $f for geo label in first line" 1>&2
+  answer=$(head -n 1 "${f}" | grep "^$geolabel$")  # is the first line the geo label?
+  echo "grep results = $answer" 1>&2
+  if [[ -n "$answer" ]]; then
+    echo "$(date): copying geo data to to minio:data/$(dirname ${f})/" 1>&2
+    rclone --log-level INFO --config /secrets/rclone.config copy --checksum "${f}" "minio:data/$(dirname ${f})/" || exit $?
+    sleep 1
+  fi
+done < <(find . -type f \( -name '*.tsdata' -o -name '*.tab' \))
 
-  # Remove any SeaFlow pop data with no abundance
-  for f in "${cruise}"/stats-no-abund*.tsdata; do
-    echo "erasing ${f}" 1>&2
-    rm "${f}" || exit $?
-  done
-
-  # Load geo file with lat/lon first
-  # Assume no joker put a newline in the file name
-  while IFS= read -r f; do
-    echo "checking $f for geo label in first line" 1>&2
-    answer=$(head -n 1 "${f}" | grep "^$geolabel$")  # is the first line the geo label?
-    echo "grep results = $answer" 1>&2
-    if [[ -n "$answer" ]]; then
-      echo "$(date): copying geo data to to minio:data/$(dirname ${f})/" 1>&2
-      rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
-        "${f}" \
-        "minio:data/$(dirname ${f})/" || exit $?
-    fi
-  done < <(find "${cruise}" -type f \( -name '*.tsdata' -o -name '*.tab' \))
-
-  echo "$(date): copying ship data to to minio:data/${cruise}" 1>&2
-  rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
-    "${cruise}" \
-    "minio:data/${cruise}/" || exit $?
-done
+echo "$(date): copying all ship data to to minio:data/" 1>&2
+rclone --log-level INFO --config /secrets/rclone.config copy --checksum /alloc/data/cache "minio:data/" || exit $?
 
         EOH
         destination = "local/run.sh"

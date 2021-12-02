@@ -9,7 +9,7 @@ job "seaflow-analysis" {
   type = "batch"
 
   periodic {
-    cron = "*/15 * * * *"  // every 15 minutes
+    cron = "5,20,35,50 * * * *"  // at 5,20,35,50 min every hour
     prohibit_overlap = true
     time_zone = "UTC"
   }
@@ -55,12 +55,18 @@ job "seaflow-analysis" {
         data = <<EOH
 #!/usr/bin/env bash
 
+set -e
+
 # Get cruise name
 echo "cruise=$(consul kv get cruise/name)" > ${NOMAD_ALLOC_DIR}/data/vars
 # Get instrument name
 echo "instrument=${NOMAD_META_instrument}" >> ${NOMAD_ALLOC_DIR}/data/vars
 # Get instrument serial
 echo "serial=$(consul kv get seaflowconfig/${NOMAD_META_instrument}/serial)" >> ${NOMAD_ALLOC_DIR}/data/vars
+# Get abundance correction
+echo "correction=$(consul kv get seaflow-analysis/${NOMAD_META_instrument}/abundance-correction)" >> ${NOMAD_ALLOC_DIR}/data/vars
+# Get volume constant
+echo "volume=$(consul kv get seaflow-analysis/${NOMAD_META_instrument}/volume-constant)" >> ${NOMAD_ALLOC_DIR}/data/vars
 
 # First extract the base db, which is base64 encoded gzipped content
 # Work backward from this
@@ -250,18 +256,64 @@ seaflowpy filter local -p 2 --delta -e "$rawdatadir" -d "$dbfile" -o "$outdir/${
 #!/usr/bin/env Rscript
 library(tidyverse)
 
+#' Create a metadata tibble for one quantile appopriate for realtime analysis
+#'
+#' @param db popcycle database file.
+#' @param quantile OPP filtering quantile to use.
+#' @param volume Use a constant volume value, overriding any calculated values.
+#' @return A tibble of realtime SFL and OPP table data
+#' @export
+create_realtime_meta <- function(db, quantile_, volume=NULL) {
+  quantile_ <- as.numeric(quantile_)
+  
+  ### Retrieve metadata
+  ## Retrieve SFL table
+  sfl <- popcycle::get.sfl.table(db)
+  # format time
+  sfl$date <- as.POSIXct(sfl$date, format="%FT%T", tz="UTC")
+  # retrieve flow rate (mL min-1) of detectable volume
+  fr <- popcycle::flowrate(sfl$stream_pressure, inst=popcycle::get.inst(db))$flow_rate
+  # convert to microL min-1
+  fr <- fr * 1000
+  # acquisition time (min)
+  acq.time <- sfl$file_duration/60
+  if (is.null(volume)) {
+    # volume in microL
+    sfl$volume <- round(fr * acq.time , 0)
+  } else {
+    sfl$volume <- volume
+  }
+
+  ## Retrive OPP table
+  # retrieve opp/evt
+  opp <- tibble::as_tibble(popcycle::get.opp.table(db))
+  opp <- opp[opp$quantile == quantile_, ]
+  opp$date <- as.POSIXct(opp$date, format="%FT%T", tz="UTC")
+  
+  ## merge all metadata
+  meta <- tibble::as_tibble(merge(sfl, opp, by="date"))
+  meta <- meta %>% dplyr::select(
+    date, lat, lon, conductivity, salinity, ocean_tmp, par, stream_pressure,
+    event_rate, volume, all_count, opp_count, evt_count, opp_evt_ratio
+  )
+
+  return(meta)
+}
+
 #' Create a population data tibble for one quantile from the VCT
 #'
 #' @param db popcycle database file.
 #' @param quantile OPP filtering quantile to use.
 #' @param with_abundance Include volume normalized "abundance" column
 #' @return A tibble of realtime population data
-create_realtime_bio <- function(db, quantile_, with_abundance=FALSE) {
+create_realtime_bio <- function(db, quantile_, correction_=NULL, with_abundance=FALSE) {
   bio <- tibble::as_tibble(popcycle::get.stat.table(db)) %>%
     dplyr::mutate(date=as.POSIXct(time, format="%FT%T", tz="UTC")) %>%
     dplyr::filter(quantile == quantile_) %>%
     dplyr::select(date, pop, n_count, abundance, diam_mid_med, diam_lwr_med) %>%
-    dplyr::rename(diam_mid=diam_mid_med, diam_lwr=diam_lwr_med)
+    dplyr::rename(diam_mid=diam_mid_med, diam_lwr=diam_lwr_med) %>%
+    dplyr::mutate(correction=correction_)
+
   if (! with_abundance) {
     bio <- bio %>% dplyr::select(-c("abundance"))
   }
@@ -282,13 +334,13 @@ write_realtime_bio_tsdata <- function(bio, project, outfile, filetype="SeaFlowPo
   writeLines(project, fh)
   writeLines(description, fh)
   if ("abundance" %in% colnames(bio)) {
+    writeLines(paste("ISO8601 timestamp", "NA", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
+    writeLines(paste("time", "category", "integer", "float", "float", "float", "float", sep="\t"), fh)
+    writeLines(paste("NA", "NA", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
+  } else {
     writeLines(paste("ISO8601 timestamp", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
     writeLines(paste("time", "category", "integer", "float", "float", "float", sep="\t"), fh)
     writeLines(paste("NA", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
-  } else {
-    writeLines(paste("ISO8601 timestamp", "NA", "NA", "NA", "NA", sep="\t"), fh)
-    writeLines(paste("time", "category", "integer", "float", "float", sep="\t"), fh)
-    writeLines(paste("NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
   }
   close(fh)
   readr::write_delim(bio, outfile, delim="\t", col_names=TRUE, append=TRUE)
@@ -321,12 +373,12 @@ parser <- optparse::add_option(parser, c("--stats-no-abund-file"), type="charact
 parser <- optparse::add_option(parser, c("--sfl-file"), type="character", default="",
                                help="SFL table output file.",
                                metavar="FILE")
-parser <- optparse::add_option(parser, c("--plot-vct-file"), type="character", default="",
-                               help="VCT plot output file.",
-                               metavar="FILE")
-parser <- optparse::add_option(parser, c("--plot-gates-file"), type="character", default="",
-                               help="Gates plot output file.",
-                               metavar="FILE")
+parser <- optparse::add_option(parser, c("--correction"), type="double", default=1,
+                               help="Abundance correction factor.",
+                               metavar="NUMBER")
+parser <- optparse::add_option(parser, c("--volume"), type="double", default=-1,
+                               help="Use a constant volume value instead of calculating from SFL.",
+                               metavar="NUMBER")
 
 p <- optparse::parse_args2(parser)
 if (p$options$instrument == "" || p$options$db == "" || p$options$opp_dir == "" || p$options$vct_dir == "") {
@@ -349,11 +401,15 @@ if (p$options$instrument == "" || p$options$db == "" || p$options$opp_dir == "" 
 stats_no_abund_file <- p$options$stats_no_abund_file
 stats_abund_file <- p$options$stats_abund_file
 sfl_file <- p$options$sfl_file
-plot_vct_file <- p$options$plot_vct_file
-plot_gates_file <- p$options$plot_gates_file
+correction <- p$options$correction
+volume <- p$options$volume
+if ((! is.numeric(volume)) || (volume < 0)) {
+  volume <- NULL
+}
 
 serial <- popcycle::get.inst(db)
 cruise <-popcycle::get.cruise(db)
+quantile_ <- "2.5"
 
 dated_msg <- function(...) {
   message(format(Sys.time(), "%Y-%m-%d %H:%M:%OS3"), ": ", ...)
@@ -371,8 +427,9 @@ message(paste0("vct-dir = ", vct_dir))
 message(paste0("stats-no-abund-file = ", stats_no_abund_file))
 message(paste0("stats-abund-file = ", stats_abund_file))
 message(paste0("sfl-file = ", sfl_file))
-message(paste0("plot-vct-file = ", plot_vct_file))
-message(paste0("plot-gates-file = ", plot_gates_file))
+message(paste0("quantile = ", quantile_))
+message(paste0("correction = ", correction))
+message(paste0("volume = ", volume))
 message("--------------")
 
 ############################
@@ -385,88 +442,60 @@ dated_msg(paste0("gating ", length(files_to_gate), " files"))
 if (length(files_to_gate) > 0) {
   popcycle::classify.opp.files(db, opp_dir, files_to_gate, vct_dir)
 }
+dated_msg("Completed gating")
 
 ##########################
 ### Save Stats and SFL ###
 ##########################
-if (stats_abund_file != "") {
-  dated_msg("saving stats / bio file with abundance")
-  stats_abund <- create_realtime_bio(db, 2.5, with_abundance=TRUE)
-  filetype <- paste0("SeaFlowPopAbundance_", inst)
-  description <- paste0("SeaFlow population data for instrument ", inst)
-  write_realtime_bio_tsdata(
-    stats_abund, stats_abund_file, project=cruise, filetype=filetype, description=description
-  )
-}
-if (stats_no_abund_file != "") {
-  dated_msg("saving stats / bio file without abundance")
-  stats_no_abund <- create_realtime_bio(db, 2.5, with_abundance=FALSE)
-  filetype <- paste0("SeaFlowPop_", inst)
-  description <- paste0("SeaFlow population data without abundance for instrument ", inst)
-  write_realtime_bio_tsdata(
-    stats_no_abund, stats_no_abund_file, project=cruise, filetype=filetype, description=description
-  )
-}
+# Create SFL table
+dated_msg("Creating SFL table")
+meta <- create_realtime_meta(db, quantile_, volume=volume)
+dated_msg("Created SFL table")
+# Create population statistics table with no abundance
+dated_msg("Creating pop table with no abundance")
+stats_no_abund <- create_realtime_bio(db, quantile_, correction_=correction, with_abundance=FALSE)
+dated_msg("Created pop table with no abundance")
+
+# Add abundance
+dated_msg("Creating pop table with abundance")
+pop <- create_realtime_bio(db, quantile_, correction_=correction, with_abundance=FALSE)
+volumes <- popcycle::create_volume_table(meta, time_expr=NULL)
+pop <- dplyr::left_join(pop, volumes, by="date")
+pop_idx <- (pop$pop == "prochloro") | (pop$pop == "synecho")
+pop[, "abundance"] <- pop[, "n_count"] / pop[, "volume_large"]
+pop[pop_idx, "abundance"] <- pop[pop_idx, "n_count"] / pop[pop_idx, "volume_small"]
+pop <- pop %>%
+  dplyr::select(date, pop, n_count, abundance, diam_mid, diam_lwr, correction)
+dated_msg("Created pop table with abundance")
+
 if (sfl_file != "") {
   dated_msg("saving SFL / metadata file")
-  meta <- popcycle::create_realtime_meta(db, 50)
   filetype <- paste0("SeaFlowSFL_", inst)
   description <- paste0("SeaFlow SFL data for instrument ", inst)
   popcycle::write_realtime_meta_tsdata(
     meta, sfl_file, project=cruise, filetype=filetype, description=description
   )
+  dated_msg("saved SFL / metadata file")
 }
 
-######################
-### PLOT CYTOGRAMS ###
-######################
-if (plot_vct_file != "" || plot_gates_file != "") {
-  opp_list <- popcycle::get.opp.files(db)
-  last_file <- tail(opp_list,1)
-  vct <- popcycle::get.vct.by.file(db, vct_dir, last_file, col_select=c("fsc_small", "chl_small", "pop_q50", "q50"))
-  vct <- vct[vct$q50, ]
-  vct$file <- vct$file_id
-  vct$pop <- vct$pop_q50
-  vct$fsc_small <- log10(vct$fsc_small)
-  vct$chl_small <- log10(vct$chl_small)
+if (stats_abund_file != "") {
+  dated_msg("saving stats / bio file with abundance")
+  filetype <- paste0("SeaFlowPopAbundance_", inst)
+  description <- paste0("SeaFlow population data for instrument ", inst)
+  write_realtime_bio_tsdata(
+    pop, stats_abund_file, project=cruise, filetype=filetype, description=description
+  )
+  dated_msg("saved stats / bio file with abundance")
+}
 
-  if (plot_vct_file != "") {
-    dated_msg("creating VCT cytogram")
-    tryCatch(
-      {
-        ggplot2::ggsave(
-          plot_vct_file,
-          popcycle::plot_vct_cytogram(vct, "fsc_small","chl_small", transform=FALSE),
-          width=10, height=6, unit='in', dpi=150
-        )
-      },
-      error=function(cond) {
-        message(cond)
-      },
-      warning=function(cond) {
-        message(cond)
-      }
-    )
-  }
-
-  if (plot_gates_file != "") {
-    dated_msg("creating Gate cytogram")
-    tryCatch(
-      {
-        ggplot2::ggsave(
-          plot_gates_file,
-          popcycle::plot_cytogram(vct, para.x="fsc_small", para.y="chl_small", bins=200, transform=FALSE),
-          width=10, height=6, unit='in', dpi=150
-        )
-      },
-      error=function(cond) {
-        message(cond)
-      },
-      warning=function(cond) {
-        message(cond)
-      }
-    )
-  }
+if (stats_no_abund_file != "") {
+  dated_msg("saving stats / bio file without abundance")
+  filetype <- paste0("SeaFlowPop_", inst)
+  description <- paste0("SeaFlow population data without abundance for instrument ", inst)
+  write_realtime_bio_tsdata(
+    stats_no_abund, stats_no_abund_file, project=cruise, filetype=filetype, description=description
+  )
+  dated_msg("saved stats / bio file without abundance")
 }
 
 dated_msg("Done")
@@ -491,16 +520,14 @@ outdir="/jobs_data/seaflow-analysis/${cruise}/${instrument}"
 dbfile="${outdir}/${cruise}.db"
 oppdir="${outdir}/${cruise}_opp"
 vctdir="${outdir}/${cruise}_vct"
-statsabundfile="${outdir}/stats-abund.${instrument}.tsdata"
-statsnoabundfile="${outdir}/stats-no-abund.${instrument}.tsdata"
-sflfile="${outdir}/sfl.popcycle.${instrument}.tsdata"
-plotvctfile="${outdir}/vct.cytogram.${instrument}.png"
-plotgatesfile="${outdir}/gate.cytogram.${instrument}.png"
+statsabundfile="${outdir}/stats-abund.${cruise}.${instrument}.tsdata"
+statsnoabundfile="${outdir}/stats-no-abund.${cruise}.${instrument}.tsdata"
+sflfile="${outdir}/sfl.popcycle.${cruise}.${instrument}.tsdata"
 
 Rscript --slave -e 'message(packageVersion("popcycle"))'
 
 # Classify and produce summary image files
-echo "Classifying data in ${outdir}"
+echo "$(date -u): Classifying data in ${outdir}" >&2
 Rscript --slave /local/cron_job.R \
   --instrument "${instrument}" \
   --db "${dbfile}" \
@@ -509,8 +536,9 @@ Rscript --slave /local/cron_job.R \
   --stats-abund-file "${statsabundfile}" \
   --stats-no-abund-file "${statsnoabundfile}" \
   --sfl-file "${sflfile}" \
-  --plot-vct-file "${plotvctfile}" \
-  --plot-gates-file "${plotgatesfile}"
+  --correction "${correction}" \
+  --volume "${volume}"
+echo "$(date -u): Finished classifying data in ${outdir}, exited R" >&2
 
 # Export section
 # -----------------------------------------------------------------------------
@@ -519,16 +547,18 @@ Rscript --slave /local/cron_job.R \
 # is not in the popcycle docker image.
 
 # Copy for dashboard data
-[[ ! -d /jobs_data/ingestwatch/seaflow-analysis/ ]] && mkdir -p /jobs_data/ingestwatch/seaflow-analysis/
-cp -a "${statsabundfile}" /jobs_data/ingestwatch/seaflow-analysis/
-cp -a "${sflfile}" /jobs_data/ingestwatch/seaflow-analysis/
+echo "$(date -u): Copying data for dashboard ingest" >&2
+[[ ! -d "/jobs_data/ingestwatch/seaflow-analysis/${cruise}" ]] && mkdir -p "/jobs_data/ingestwatch/seaflow-analysis/${cruise}"
+cp -a "${statsabundfile}" "/jobs_data/ingestwatch/seaflow-analysis/${cruise}/"
+cp -a "${sflfile}" "/jobs_data/ingestwatch/seaflow-analysis/${cruise}/"
+echo "$(date -u): Completed dashboard ingest copy" >&2
 
 # # Copy for sync to shore
-[[ ! -d /jobs_data/sync/seaflow-analysis/ ]] && mkdir -p /jobs_data/sync/seaflow-analysis/
-cp -a "${statsnoabundfile}" /jobs_data/sync/seaflow-analysis/
-cp -a "${sflfile}" /jobs_data/sync/seaflow-analysis/
-cp -a "${plotvctfile}" /jobs_data/sync/seaflow-analysis/
-cp -a "${plotgatesfile}" /jobs_data/sync/seaflow-analysis/
+echo "$(date -u): Copying data for sync" >&2
+[[ ! -d "/jobs_data/sync/seaflow-analysis/${cruise}" ]] && mkdir -p "/jobs_data/sync/seaflow-analysis/${cruise}"
+cp -a "${statsnoabundfile}" /jobs_data/sync/seaflow-analysis/${cruise}/
+cp -a "${sflfile}" /jobs_data/sync/seaflow-analysis/${cruise}/
+echo "$(date -u): Completed sync copy" >&2
 
         EOH
         destination = "/local/run.sh"

@@ -9,7 +9,7 @@ job "sync" {
   type = "batch"
 
   periodic {
-    cron = "30 * * * *"  // at 30 min past every hour
+    cron = "15 * * * *"  // at 15 min past every hour
     prohibit_overlap = true
     time_zone = "UTC"
   }
@@ -94,17 +94,36 @@ python3 -c 'import sys; sys.stdout.write(sys.stdin.read().replace("\\n", "\n"))'
 chmod 600 /local/sshprivatekey2
 
 # Cache data to sync
+echo "$(date -u): Caching data from minio:sync/" 1>&2
 rclone --log-level INFO --config /secrets/rclone.config copy --checksum minio:sync/ /jobs_data/sync/
+echo "$(date -u): Caching data from minio:user-data/" 1>&2
+rclone --log-level INFO --config /secrets/rclone.config copy --checksum minio:user-data/ /jobs_data/sync/user-data
 
 # rsync to shore
 # Make sure remote path exists
+echo "$(date -u): checking for shore sync target folder" 1>&2
 ssh -i /local/sshprivatekey2 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null" \
   "ubuntu@${SYNC_HOST}" \
   "bash -c 'mkdir ~/realtime-sync 2>/dev/null'"
 
-rsync -e 'ssh -i /local/sshprivatekey2 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null"' -au --stats \
-  /jobs_data/sync/ \
-  "ubuntu@${SYNC_HOST}:realtime-sync/${CRUISE}" 1>&2
+echo "$(date -u): rsync-ing data to shore" 1>&2
+timeout -k 60s 600s \
+  rsync -e 'ssh -i /local/sshprivatekey2 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null"' \
+    -au --timeout 600 --progress --stats --bwlimit=300000 \
+    /jobs_data/sync/ \
+    "ubuntu@${SYNC_HOST}:realtime-sync/" 1>&2
+status=$?
+if [[ ${status} -eq 124 ]]; then
+  echo "$(date -u): rsync killed by timeout sigint" 1>&2
+elif [[ ${status} -eq 137 ]]; then
+  echo "$(date -u): rsync killed by timeout sigkill" 1>&2
+elif [[ ${status} -gt 0 ]]; then
+  echo "$(date -u): rsync exited with an error, status = ${status}" 1>&2
+else
+  echo "$(date -u): rsync completed successfully" 1>&2
+fi
+
+exit ${status}
 
         EOH
         destination = "local/run.sh"

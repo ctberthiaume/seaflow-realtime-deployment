@@ -36,15 +36,17 @@ then
     elif [[ "$1" = "data" || "$1" = "user-data" ]] ; then  # the bucket
         # Record which file we're processing and make sure it's there
         if mc ls "minio/$1/$objectkey"; then
+            mc cat "minio/$1/$objectkey" > /tmp/datafile
+            sed -i 's/[[:blank:]\r]*$//' /tmp/datafile # remove trailing whitespace and carriage returns from every line
+            tsdataformat clean -i /tmp/datafile -o - > /tmp/datafile_clean
             # Get pgdatabase and table name
-            pgtable=$(mc cat "minio/$1/$objectkey" | awk 'NR == 1 {print $1; exit}')
-            pgdatabase=$(mc cat "minio/$1/$objectkey" | awk 'NR == 2 {print $1; exit}')
+            pgtable=$(awk 'NR == 1 {print $1; exit}' /tmp/datafile_clean)
+            pgdatabase=$(awk 'NR == 2 {print $1; exit}' /tmp/datafile_clean)
             echo "Adding new data file minio/$1/$objectkey as db=$pgdatabase table=$pgtable" >&2
             # Add schema to DB
-            mc cat "minio/$1/$objectkey" | python3 /app/tsdata2sql.py -v - || exit 1
+            python3 /app/tsdata2sql.py -v /tmp/datafile_clean || exit 1
             # Import to DB
-            mc cat "minio/$1/$objectkey" | \
-                tsdata csv - - | \
+            tsdata csv /tmp/datafile_clean - | \
                 timescaledb-parallel-copy --truncate --workers 2 --batch-size 50000 --verbose \
                     --connection "host=$PGHOST user=$PGUSER sslmode=disable" \
                     --db-name "$pgdatabase" --table "${pgtable}_raw" --copy-options "CSV HEADER NULL 'NA'" || exit 1

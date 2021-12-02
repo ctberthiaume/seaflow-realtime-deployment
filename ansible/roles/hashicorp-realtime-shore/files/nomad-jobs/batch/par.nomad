@@ -49,6 +49,7 @@ job "par" {
       template {
         data = <<EOH
 PAR_PROJECT="{{ key "cruise/name" }}"
+PAR_START="{{ key "cruise/start" }}"
         EOH
         destination = "secrets/file.env"
         env = true
@@ -79,6 +80,7 @@ import glob
 import logging
 import re
 import sys
+import time
 
 
 import click
@@ -89,11 +91,25 @@ logging.basicConfig(format='%(asctime)s: %(message)s', level=logging.INFO, datef
 time_re = re.compile(r"^\[(\d\d)/(\d\d)/(\d\d) - (\d\d):(\d\d):(\d\d):(\d\d\d)\]$")
 par_re = re.compile(r"^\$PPAR,(.+)$")
 
+
+def validate_timestamp(ctx, param, value):
+    if value is not None:
+        try:
+            if value.endswith("Z"):
+                value = value[:-1] + "+00:00"
+            value = datetime.datetime.fromisoformat(value)
+        except ValueError:
+            raise click.BadParameter('unable to parse timestamp.')
+    return value
+
+
 @click.command()
 @click.option("--project", default="par-project", type=str, help="Project name")
+@click.option("--start", type=str, callback=validate_timestamp, help="RFC3339 earliest timestamp to output")
 @click.argument("indir", type=click.Path(exists=True, dir_okay=True, file_okay=False, readable=True))
-def cli(project, indir):
-    logging.info("starting project=%s indir=%s", project, indir)
+def cli(project, start, indir):
+    logging.info("starting project=%s indir=%s start=%s", project, indir, start)
+
     df = pd.DataFrame()
     for path in sorted(glob.glob(f"{indir}/ParLog_*")):
         logging.info("reading %s", path)
@@ -103,6 +119,11 @@ def cli(project, indir):
         except (IOError, OSError) as e:
             logging.warning("could not read %s: %s", path, e)
         df = pd.concat([df, subdf])
+
+    if (start is not None) and (not df.empty):
+        logging.info("removing %d/%d rows before %s", len(df[df.index < start]), len(df), start.isoformat())
+        df = df[df.index >= start]
+
     print("par")
     print(project)
     print("Thompson PAR data")
@@ -147,7 +168,6 @@ def read_par(path):
 
 if __name__ == "__main__":
     cli(auto_envvar_prefix='PAR')
-
         EOH
         destination = "local/parse.py"
         perms = "755"
