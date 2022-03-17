@@ -70,7 +70,6 @@
     - seaflowpy
     - popcycle
     - ingest
-    - chapydette
 
 - hosts: all
   become: yes
