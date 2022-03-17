@@ -26,6 +26,7 @@ job "ingest" {
 
       config {
         image = "ingest:local"
+        command = "/app/run.sh"
         args = [
           "${NOMAD_META_bucket}",
           "${NOMAD_META_key}"

@@ -31,14 +31,6 @@ job "caddy" {
         interval = "10s"
         timeout  = "2s"
       }
-
-      # check {
-      #   name     = "alive"
-      #   type     = "tcp"
-      #   port     = "https"
-      #   interval = "10s"
-      #   timeout  = "5s"
-      # }
     }
 
     task "caddy" {
@@ -55,7 +47,12 @@ job "caddy" {
           target = "/data"
           source = "caddy_data"
         }
-        #cap_add = ["net_bind_service"]
+
+        mount {
+          type = "bind"
+          target = "/srv/public_files"
+          source = "/srv/public_files"
+        }
       }
 
       resources {
@@ -69,7 +66,19 @@ job "caddy" {
 # for HTTP localhost use something like "http://localhost:3001"
 # for automatic HTTPS public site use the bare domain name like "example.com"
 "{{ key "caddy/grafana-site-address" }}" {
-  reverse_proxy 127.0.0.1:3000
+  redir /datafiles /datafiles/
+
+  handle /datafiles/* {
+    root * /srv/public_files
+    uri strip_prefix /datafiles
+    file_server {
+      browse
+    }
+  }
+
+  handle {
+    reverse_proxy 127.0.0.1:3000
+  }
 }
 
 # minio web console

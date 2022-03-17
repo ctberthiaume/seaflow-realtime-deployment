@@ -15,11 +15,13 @@
 # - MC_HOST_minio = minio http api endpoint with embedded credentials
 #                   e.g. "http://USER:SECRET@@127.0.0.1:9000"
 
-if [[ $# -eq 2 && -n $1 && -n $2 ]]
+if [[ $# -eq 2 && -n "$1" && -n "$2" ]]
 then
     # Must URL decode key
-    objectkey=$(echo -n "$2" | python3 -c "import sys; from urllib.parse import unquote; print(unquote(sys.stdin.read()));")
+    objectkey="$(echo -n $2 | python3 -c 'import sys; from urllib.parse import unquote; print(unquote(sys.stdin.read()));')"
     objectfilename=$(basename "$objectkey")
+    echo "objectkey = $objectkey" >&2
+    echo "object filename = $objectfilename" >&2
     if [[ "$1" = "debug" ]]
     then
         echo "debug: bucket=$1 key=$objectkey"
@@ -38,10 +40,10 @@ then
         if mc ls "minio/$1/$objectkey"; then
             mc cat "minio/$1/$objectkey" > /tmp/datafile
             sed -i 's/[[:blank:]\r]*$//' /tmp/datafile # remove trailing whitespace and carriage returns from every line
-            tsdataformat clean -i /tmp/datafile -o - > /tmp/datafile_clean
+            tsdata clean -q /tmp/datafile - > /tmp/datafile_clean
             # Get pgdatabase and table name
-            pgtable=$(awk 'NR == 1 {print $1; exit}' /tmp/datafile_clean)
-            pgdatabase=$(awk 'NR == 2 {print $1; exit}' /tmp/datafile_clean)
+            pgtable=$(awk -F "\t" 'NR == 1 {print $1; exit}' /tmp/datafile_clean)
+            pgdatabase=$(awk -F "\t" 'NR == 2 {print $1; exit}' /tmp/datafile_clean)
             echo "Adding new data file minio/$1/$objectkey as db=$pgdatabase table=$pgtable" >&2
             # Add schema to DB
             python3 /app/tsdata2sql.py -v /tmp/datafile_clean || exit 1

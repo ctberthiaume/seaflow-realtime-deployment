@@ -7,22 +7,26 @@ RUN go mod init timescaledb-parallel-copy-build \
 
 WORKDIR /tsdata-build
 RUN go mod init tsdata-build \
-    && go get -d github.com/ctberthiaume/tsdata/cmd/tsdata@v0.2.5 \
+    && go get -d github.com/ctberthiaume/tsdata/cmd/tsdata@v0.3.0 \
     && go build -o tsdata github.com/ctberthiaume/tsdata/cmd/tsdata
 
 FROM python:3.8-buster
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG GF_UID="472"
+ARG REALTIME_UID="1000"
 
 # Install apt packages, make grafana user
 RUN apt-get -qq update \
     && apt-get install -qq -y \
     postgresql-client \
+    rclone \
+    rsync \
     vim \
     2>&1 | grep -v "debconf: delaying package configuration, since apt-utils is not installed" \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd -r -m -u $GF_UID grafana
+    && useradd -r -m -u $GF_UID grafana \
+    && useradd -m -u $REALTIME_UID ubuntu
 
 # Install Go tools from previous build stage
 COPY --from=gobuild \
@@ -49,4 +53,4 @@ RUN chmod +x /app/run.sh
 
 WORKDIR /app/
 USER grafana
-ENTRYPOINT ["./run.sh"]
+CMD ["bash"]

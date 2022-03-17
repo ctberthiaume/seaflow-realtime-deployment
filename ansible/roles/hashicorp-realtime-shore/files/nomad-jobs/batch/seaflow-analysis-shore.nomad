@@ -3,7 +3,7 @@ variable "realtime_user" {
   default = "ubuntu"
 }
 
-job "seaflow-analysis" {
+job "seaflow-analysis-shore" {
   datacenters = ["dc1"]
 
   type = "batch"
@@ -15,7 +15,10 @@ job "seaflow-analysis" {
   }
 
   parameterized {
-    meta_required = ["instrument"]
+    meta_required = [
+      "cruise",
+      "instrument"
+    ]
   }
 
   # No restart attempts
@@ -24,7 +27,7 @@ job "seaflow-analysis" {
     unlimited = false
   }
 
-  group "seaflow-analysis" {
+  group "seaflow-analysis-shore" {
     count = 1
 
     volume "jobs_data" {
@@ -64,14 +67,18 @@ echo "instrument=${NOMAD_META_instrument}" >> ${NOMAD_ALLOC_DIR}/data/vars
 # Get instrument serial
 echo "serial=$(consul kv get seaflowconfig/${NOMAD_META_instrument}/serial)" >> ${NOMAD_ALLOC_DIR}/data/vars
 # Get abundance correction
-echo "correction=$(consul kv get seaflow-analysis/${NOMAD_META_instrument}/abundance-correction)" >> ${NOMAD_ALLOC_DIR}/data/vars
+echo "correction=$(consul kv get seaflow-analysis-shore/${NOMAD_META_instrument}/abundance-correction)" >> ${NOMAD_ALLOC_DIR}/data/vars
 # Get volume constant
-echo "volume=$(consul kv get seaflow-analysis/${NOMAD_META_instrument}/volume-constant)" >> ${NOMAD_ALLOC_DIR}/data/vars
+echo "volume=$(consul kv get seaflow-analysis-shore/${NOMAD_META_instrument}/volume-constant)" >> ${NOMAD_ALLOC_DIR}/data/vars
+# Realtime sync directory
+echo "syncdir=/jobs_data/realtime-sync"
+# Output directory
+echo "outdir=/jobs_data/seaflow-analysis-shore/${cruise}/${instrument}"
 
 # First extract the base db, which is base64 encoded gzipped content
 # Work backward from this
-# gzip -c base.db | base64 | consul kv put "seaflow-analysis/${instrument}/dbgz" -
-consul kv get "seaflow-analysis/${NOMAD_META_instrument}/dbgz" | \
+# gzip -c base.db | base64 | consul kv put "seaflow-analysis-shore/${instrument}/dbgz" -
+consul kv get "seaflow-analysis-shore/${NOMAD_META_instrument}/dbgz" | \
   base64 --decode | \
   gzip -dc > ${NOMAD_ALLOC_DIR}/data/base.db
         EOH
@@ -81,7 +88,7 @@ consul kv get "seaflow-analysis/${NOMAD_META_instrument}/dbgz" | \
       }
     }
 
-    task "filter" {
+    task "classification" {
       driver = "docker"
 
       volume_mount {
@@ -165,7 +172,7 @@ CREATE VIEW IF NOT EXISTS stat AS
       template {
         data = <<EOH
 #!/usr/bin/env bash
-# Perform SeaFlow setup and filtering
+# Perform SeaFlow setup and classification
 
 set -e
 
@@ -174,14 +181,12 @@ source ${NOMAD_ALLOC_DIR}/data/vars
 
 echo "seaflowpy version = $(seaflowpy version)"
 
-outdir="/jobs_data/seaflow-analysis/${cruise}/${instrument}"
-rawdatadir="/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt"
 dbfile="${outdir}/${cruise}.db"
 
 echo "cruise=${cruise}"
 echo "instrument=${instrument}"
 echo "outdir=${outdir}"
-echo "rawdatadir=${rawdatadir}"
+echo "syncdir=${syncdir}"
 echo "serial=${serial}"
 echo "dbfile=${dbfile}"
 
@@ -211,16 +216,6 @@ sqlite3 ${NOMAD_ALLOC_DIR}/data/base.db ".dump gating" | sqlite3 "${dbfile}" || 
 sqlite3 "${dbfile}" 'drop table poly' || exit $?
 sqlite3 ${NOMAD_ALLOC_DIR}/data/base.db ".dump poly" | sqlite3 "${dbfile}" || exit $?
 
-# Find and import all SFL files in rawdatadir
-echo "Importing SFL data in $rawdatadir"
-echo "Saving cleaned and concatenated SFL file at ${outdir}/${cruise}.sfl"
-# Just going to assume there are no newlines in filenames here (there shouldn't be!)
-seaflowpy sfl print $(/usr/bin/find "$rawdatadir" -name '*.sfl' | sort) > "${outdir}/${cruise}.concatenated.sfl" || exit $?
-seaflowpy db import-sfl -f "${outdir}/${cruise}.concatenated.sfl" "$dbfile" || exit $?
-
-# Filter new files with seaflowpy
-echo "Filtering data in ${rawdatadir} and writing to ${outdir}"
-seaflowpy filter local -p 2 --delta -e "$rawdatadir" -d "$dbfile" -o "$outdir/${cruise}_opp" || exit $?
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
@@ -255,96 +250,6 @@ seaflowpy filter local -p 2 --delta -e "$rawdatadir" -d "$dbfile" -o "$outdir/${
         data = <<EOH
 #!/usr/bin/env Rscript
 library(tidyverse)
-
-#' Create a metadata tibble for one quantile appopriate for realtime analysis
-#'
-#' @param db popcycle database file.
-#' @param quantile OPP filtering quantile to use.
-#' @param volume Use a constant volume value, overriding any calculated values.
-#' @return A tibble of realtime SFL and OPP table data
-#' @export
-create_realtime_meta <- function(db, quantile_, volume=NULL) {
-  quantile_ <- as.numeric(quantile_)
-  
-  ### Retrieve metadata
-  ## Retrieve SFL table
-  sfl <- popcycle::get.sfl.table(db)
-  # format time
-  sfl$date <- as.POSIXct(sfl$date, format="%FT%T", tz="UTC")
-  # retrieve flow rate (mL min-1) of detectable volume
-  fr <- popcycle::flowrate(sfl$stream_pressure, inst=popcycle::get.inst(db))$flow_rate
-  # convert to microL min-1
-  fr <- fr * 1000
-  # acquisition time (min)
-  acq.time <- sfl$file_duration/60
-  if (is.null(volume)) {
-    # volume in microL
-    sfl$volume <- round(fr * acq.time , 0)
-  } else {
-    sfl$volume <- volume
-  }
-
-  ## Retrive OPP table
-  # retrieve opp/evt
-  opp <- tibble::as_tibble(popcycle::get.opp.table(db))
-  opp <- opp[opp$quantile == quantile_, ]
-  opp$date <- as.POSIXct(opp$date, format="%FT%T", tz="UTC")
-  
-  ## merge all metadata
-  meta <- tibble::as_tibble(merge(sfl, opp, by="date"))
-  meta <- meta %>% dplyr::select(
-    date, lat, lon, conductivity, salinity, ocean_tmp, par, stream_pressure,
-    event_rate, volume, all_count, opp_count, evt_count, opp_evt_ratio
-  )
-
-  return(meta)
-}
-
-#' Create a population data tibble for one quantile from the VCT
-#'
-#' @param db popcycle database file.
-#' @param quantile OPP filtering quantile to use.
-#' @param with_abundance Include volume normalized "abundance" column
-#' @return A tibble of realtime population data
-create_realtime_bio <- function(db, quantile_, correction_=NULL, with_abundance=FALSE) {
-  bio <- tibble::as_tibble(popcycle::get.stat.table(db)) %>%
-    dplyr::mutate(date=as.POSIXct(time, format="%FT%T", tz="UTC")) %>%
-    dplyr::filter(quantile == quantile_) %>%
-    dplyr::select(date, pop, n_count, abundance, diam_mid_med, diam_lwr_med) %>%
-    dplyr::rename(diam_mid=diam_mid_med, diam_lwr=diam_lwr_med) %>%
-    dplyr::mutate(correction=correction_)
-
-  if (! with_abundance) {
-    bio <- bio %>% dplyr::select(-c("abundance"))
-  }
-  return(bio)
-}
-
-#' Write population data as a TSDATA file
-#'
-#' @param bio Population dataframe created by create_realtime_bio()
-#' @param project Project identifier
-#' @param outfile Output file path
-#' @param filetype Filetype identifier
-#' @param description Long form description of this file
-write_realtime_bio_tsdata <- function(bio, project, outfile, filetype="SeaFlowPop", description="SeaFlow population data") {
-  bio <- bio %>% dplyr::rename(time=date)
-  fh <- file(outfile, open="wt")
-  writeLines(filetype, fh)
-  writeLines(project, fh)
-  writeLines(description, fh)
-  if ("abundance" %in% colnames(bio)) {
-    writeLines(paste("ISO8601 timestamp", "NA", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
-    writeLines(paste("time", "category", "integer", "float", "float", "float", "float", sep="\t"), fh)
-    writeLines(paste("NA", "NA", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
-  } else {
-    writeLines(paste("ISO8601 timestamp", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
-    writeLines(paste("time", "category", "integer", "float", "float", "float", sep="\t"), fh)
-    writeLines(paste("NA", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
-  }
-  close(fh)
-  readr::write_delim(bio, outfile, delim="\t", col_names=TRUE, append=TRUE)
-}
 
 parser <- optparse::OptionParser(usage="usage: realtime-classify.R --db FILE --vct-dir FILE --opp-dir DIR [options]")
 # Have a separate instrument option here because in some cases the serial and
@@ -516,29 +421,18 @@ set -e
 # Get variables defined by setup task
 source ${NOMAD_ALLOC_DIR}/data/vars
 
-outdir="/jobs_data/seaflow-analysis/${cruise}/${instrument}"
-dbfile="${outdir}/${cruise}.db"
-oppdir="${outdir}/${cruise}_opp"
-vctdir="${outdir}/${cruise}_vct"
-statsabundfile="${outdir}/stats-abund.${cruise}.${instrument}.tsdata"
-statsnoabundfile="${outdir}/stats-no-abund.${cruise}.${instrument}.tsdata"
-sflfile="${outdir}/sfl.popcycle.${cruise}.${instrument}.tsdata"
-
 Rscript --slave -e 'message(packageVersion("popcycle"))'
 
-# Classify and produce summary image files
+# Classify and produce summary files
 echo "$(date -u): Classifying data in ${outdir}" >&2
 timeout -k 60s 2h \
 Rscript --slave /local/cron_job.R \
   --instrument "${instrument}" \
-  --db "${dbfile}" \
-  --opp-dir "${oppdir}" \
-  --vct-dir "${vctdir}" \
-  --stats-abund-file "${statsabundfile}" \
-  --stats-no-abund-file "${statsnoabundfile}" \
-  --sfl-file "${sflfile}" \
+  --sync-dir "${syncdir}" \
+  --out-dir "${outdir}" \
   --correction "${correction}" \
-  --volume "${volume}"
+  --volume "${volume}" >&2
+
 status=$?
 if [[ ${status} -eq 124 ]]; then
   echo "$(date -u): classification killed by timeout sigint" 1>&2
@@ -558,17 +452,12 @@ fi
 
 # Copy for dashboard data
 echo "$(date -u): Copying data for dashboard ingest" >&2
-[[ ! -d "/jobs_data/ingestwatch/seaflow-analysis/${cruise}" ]] && mkdir -p "/jobs_data/ingestwatch/seaflow-analysis/${cruise}"
-cp -a "${statsabundfile}" "/jobs_data/ingestwatch/seaflow-analysis/${cruise}/"
-cp -a "${sflfile}" "/jobs_data/ingestwatch/seaflow-analysis/${cruise}/"
-echo "$(date -u): Completed dashboard ingest copy" >&2
+[[ ! -d "/jobs_data/ingestwatch/seaflow-analysis-shore/${cruise}" ]] && mkdir -p "/jobs_data/ingestwatch/seaflow-analysis-shore/${cruise}"
 
-# # Copy for sync to shore
-echo "$(date -u): Copying data for sync" >&2
-[[ ! -d "/jobs_data/sync/seaflow-analysis/${cruise}" ]] && mkdir -p "/jobs_data/sync/seaflow-analysis/${cruise}"
-cp -a "${statsnoabundfile}" /jobs_data/sync/seaflow-analysis/${cruise}/
-cp -a "${sflfile}" /jobs_data/sync/seaflow-analysis/${cruise}/
-echo "$(date -u): Completed sync copy" >&2
+find "${outdir}" -type f -name '*.tsdata' >&2
+find "${outdir}" -type f -name '*.tsdata' -exec \
+  cp -a "{}" "/jobs_data/ingestwatch/seaflow-analysis-shore/${cruise}/" \;
+echo "$(date -u): Completed dashboard ingest copy" >&2
 
         EOH
         destination = "/local/run.sh"

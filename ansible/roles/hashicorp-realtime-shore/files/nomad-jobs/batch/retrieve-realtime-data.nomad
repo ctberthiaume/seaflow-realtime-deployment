@@ -29,9 +29,7 @@ job "retrieve-realtime-data" {
     }
 
     task "retrieve-realtime-data" {
-      driver = "exec"
-
-      user = var.realtime_user
+      driver = "docker"
 
       volume_mount {
         volume = "jobs_data"
@@ -39,11 +37,15 @@ job "retrieve-realtime-data" {
       }
 
       config {
+        image = "ingest:local"
         command = "/local/run.sh"
+        network_mode = "host"
       }
 
+      user = var.realtime_user
+
       resources {
-        memory = 100
+        memory = 50
         cpu = 300
       }
 

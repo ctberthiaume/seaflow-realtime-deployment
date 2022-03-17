@@ -9,7 +9,7 @@ job "ingestshore" {
   type = "batch"
 
   periodic {
-    cron = "*/15 * * * *"  // every 15 minutes
+    cron = "02,12,22,32,42,52 * * * *"  // every 10 minutes with 2 minute offset
     prohibit_overlap = true
     time_zone = "UTC"
   }
@@ -140,26 +140,28 @@ done < <(find /alloc/data/cache/ -type f -name 'sfl.popcycle.*.tsdata')
     }
 
     task "export" {
-      driver = "exec"
-
-      user = var.realtime_user
-
-      config {
-        command = "/local/run.sh"
-      }
-
-      lifecycle {
-        hook = "poststop"
-        sidecar = false
-      }
+      driver = "docker"
 
       volume_mount {
         volume = "jobs_data"
         destination = "/jobs_data"
       }
 
+      config {
+        image = "ingest:local"
+        command = "/local/run.sh"
+        network_mode = "host"
+      }
+
+      user = 472
+
+      lifecycle {
+        hook = "poststop"
+        sidecar = false
+      }
+
       resources {
-        memory = 50
+        memory = 100
         cpu = 300
       }
 

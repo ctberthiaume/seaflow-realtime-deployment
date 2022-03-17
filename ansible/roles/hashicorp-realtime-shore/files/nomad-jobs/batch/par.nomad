@@ -155,19 +155,25 @@ def read_par(path):
                         logging.warning("bad timestamp %s on line number %d", line, linenum + 1)
                         t = None
             elif (t is not None) and line.startswith("$PPAR,"):
-                _, par, _ = line.split(",", 2)
-                par = par.strip()
-                try:
-                    times.append(t), pars.append(float(par))
-                except ValueError as e:
-                    logging.warning("bad float %s on line number %d", par, linenum + 1)
-                    val = None
+                fields = line.split(",")
+                if len(fields) != 4:
+                    logging.warning("not enough $PAR fields on line number %d", linenum + 1)
+                else:
+                    par = fields[1].strip()
+                    try:
+                        par_val = float(par)
+                    except ValueError as e:
+                        logging.warning("bad float %s on line number %d", par, linenum + 1)
+                    else:
+                        times.append(t)
+                        pars.append(par_val)
                 t = None  # reset time
         return { "time": times, "par": pars }
 
 
 if __name__ == "__main__":
     cli(auto_envvar_prefix='PAR')
+
         EOH
         destination = "local/parse.py"
         perms = "755"

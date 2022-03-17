@@ -62,7 +62,7 @@ datasources:
   jsonData:
     postgresVersion: 1200
     timescaledb: true
-    maxOpenConns: unlimited
+    maxOpenConns: 0
     maxIdleConns: 2
     connMaxLifetime: 14400
     timeInterval: 1m

@@ -93,7 +93,7 @@ consul kv get -recurse "subsample/${NOMAD_META_instrument}/" | \
       }
 
       resources {
-        memory = 1500
+        memory = 5000
         cpu = 300
       }
 
@@ -152,6 +152,7 @@ def cli(count, seed, oppdir, outdir):
         except (IOError, OSError) as e:
           logging.error("could not read parquet file %s: %s", input_file.path, e)
           sys.exit(1)
+        count = min(count, len(df))
         if seed is not None:
           sub = df.sample(n=count, random_state=seed)
         else:
@@ -188,14 +189,25 @@ seaflowpy version
 [[ -d "$outdir" ]] || mkdir -p "$outdir"
 
 # Full sample for noise estimation
-seaflowpy evt sample \
+echo "$(date -u): Subsampling with no filters" 1>&2
+timeout -k 60s 600s seaflowpy evt sample \
   --min-date "${start}" \
   --tail-hours "${sample_tail_hours}" \
   --count "${sample_noise_count}" \
   --file-fraction 1.0 \
   --verbose \
   --outpath "${outdir}/last-${sample_tail_hours}-hours.fullSample.parquet" \
-  "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt"
+  "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt" 1>&2
+status=$?
+if [[ ${status} -eq 124 ]]; then
+  echo "$(date -u): full subsample killed by timeout sigint" 1>&2
+elif [[ ${status} -eq 137 ]]; then
+  echo "$(date -u): full subsample killed by timeout sigkill" 1>&2
+elif [[ ${status} -gt 0 ]]; then
+  echo "$(date -u): full subsample exited with an error, status = ${status}" 1>&2
+else
+  echo "$(date -u): full subsample completed successfully" 1>&2
+fi
 
 # Full sample with noise filtered out
 # seaflowpy evt sample \
@@ -209,7 +221,8 @@ seaflowpy evt sample \
 #   "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt"
 
 # Bead sample
-seaflowpy evt sample \
+echo "$(date -u): Subsampling for beads" 1>&2
+timeout -k 60s 600s seaflowpy evt sample \
   --min-date "${start}" \
   --tail-hours "${sample_tail_hours}" \
   --count 1500 \
@@ -220,7 +233,17 @@ seaflowpy evt sample \
   --multi --file-fraction 1.0 \
   --verbose \
   --outpath "${outdir}/last-${sample_tail_hours}-hours.beadSample.parquet" \
-  "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt"
+  "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt" 1>&2
+status=$?
+if [[ ${status} -eq 124 ]]; then
+  echo "$(date -u): bead subsample killed by timeout sigint" 1>&2
+elif [[ ${status} -eq 137 ]]; then
+  echo "$(date -u): bead subsample killed by timeout sigkill" 1>&2
+elif [[ ${status} -gt 0 ]]; then
+  echo "$(date -u): bead subsample exited with an error, status = ${status}" 1>&2
+else
+  echo "$(date -u): bead subsample completed successfully" 1>&2
+fi
 
 # # Bead finder
 # seaflowpy evt beads \
@@ -232,10 +255,21 @@ seaflowpy evt sample \
 #   "${outdir}/last-${sample_tail_hours}-hours.beadSample.parquet"
 
 # OPP sample
-python3 /local/sample.py \
+echo "$(date -u): Subsampling OPP" 1>&2
+timeout -k 60s 600s python3 /local/sample.py \
   --count "${opp_sample_count}" \
   "/jobs_data/seaflow-analysis/${cruise}/${instrument}/${cruise}_opp" \
   "${outdir}"
+status=$?
+if [[ ${status} -eq 124 ]]; then
+  echo "$(date -u): OPP subsample killed by timeout sigint" 1>&2
+elif [[ ${status} -eq 137 ]]; then
+  echo "$(date -u): OPP subsample killed by timeout sigkill" 1>&2
+elif [[ ${status} -gt 0 ]]; then
+  echo "$(date -u): OPP subsample exited with an error, status = ${status}" 1>&2
+else
+  echo "$(date -u): OPP subsample completed successfully" 1>&2
+fi
 
         EOH
         destination = "/local/run.sh"
