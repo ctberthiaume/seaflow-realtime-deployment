@@ -124,21 +124,30 @@ logging.basicConfig(format='%(asctime)s: %(message)s', level=logging.INFO, datef
 def cli(count, seed, oppdir, outdir):
     logging.info("count=%d seed=%s oppdir=%s outdir=%s", count, seed, oppdir, outdir)
 
-    opps = [sfile.SeaFlowFile(o) for o in sorted(glob.glob(f"{oppdir}/*.parquet"))]
+    opps = []
+    for o in sorted(glob.glob(f"{oppdir}/*.parquet")):
+      parts = os.path.basename(o).split(".")[0].split("T")
+      parts[1] = parts[1].replace("-", ":")
+      opps.append({
+        "filename": os.path.basename(o),
+        "path": o,
+        "date": datetime.fromisoformat("T".join(parts))
+      })
+
     now = datetime.now(timezone.utc)
     prevhour = (now - timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
     
     logging.info("current time is %s, last hour was %s", now.isoformat(), prevhour.isoformat())
     
-    matches = [o for o in opps if o.date == prevhour]
+    matches = [o for o in opps if o["date"] == prevhour]
     if len(matches) == 0:
       logging.info("no OPP files found for the previous hour")
     elif len(matches) > 1:
-      logging.warning("> 1 OPP file found for the previous hour: %s", ", ".join([m.filename for m in matches]))
+      logging.warning("> 1 OPP file found for the previous hour: %s", ", ".join([m["filename"] for m in matches]))
     else:
       input_file = matches[0]
-      logging.info("found OPP file for the previous hour: %s", input_file.filename)
-      output_path = os.path.join(outdir, input_file.filename.replace(".parquet", "") + ".sample.parquet")
+      logging.info("found OPP file for the previous hour: %s", input_file["filename"])
+      output_path = os.path.join(outdir, input_file["filename"].replace(".parquet", "") + ".sample.parquet")
       logging.info("writing to %s", output_path)
       if not os.path.exists(output_path):
         try:
@@ -148,9 +157,9 @@ def cli(count, seed, oppdir, outdir):
           sys.exit(1)
 
         try:
-          df = pd.read_parquet(input_file.path)
+          df = pd.read_parquet(input_file["path"])
         except (IOError, OSError) as e:
-          logging.error("could not read parquet file %s: %s", input_file.path, e)
+          logging.error("could not read parquet file %s: %s", input_file["path"], e)
           sys.exit(1)
         count = min(count, len(df))
         if seed is not None:
@@ -209,17 +218,6 @@ else
   echo "$(date -u): full subsample completed successfully" 1>&2
 fi
 
-# Full sample with noise filtered out
-# seaflowpy evt sample \
-#   --min-date "${start}" \
-#   --tail-hours "${sample_tail_hours}" \
-#   --noise-filter \
-#   --file-fraction 1.0 \
-#   --count "${sample_full_count}" \
-#   --verbose \
-#   --outpath "${outdir}/last-${sample_tail_hours}-hours.fullSample-noNoise.parquet" \
-#   "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt"
-
 # Bead sample
 echo "$(date -u): Subsampling for beads" 1>&2
 timeout -k 60s 600s seaflowpy evt sample \
@@ -244,15 +242,6 @@ elif [[ ${status} -gt 0 ]]; then
 else
   echo "$(date -u): bead subsample completed successfully" 1>&2
 fi
-
-# # Bead finder
-# seaflowpy evt beads \
-#   --cruise "${cruise}" \
-#   --min-fsc "${bead_finder_min_fsc}" \
-#   --min-pe "${bead_finder_min_pe}" \
-#   --verbose \
-#   --out-dir "${outdir}/last-${sample_tail_hours}-hours.beads" \
-#   "${outdir}/last-${sample_tail_hours}-hours.beadSample.parquet"
 
 # OPP sample
 echo "$(date -u): Subsampling OPP" 1>&2
@@ -331,7 +320,7 @@ set -e
 source ${NOMAD_ALLOC_DIR}/data/vars
 
 # Copy for sync to shore
-echo "$(date): copying ${outdir} to minio:sync/subsample/${outdir}" 1>&2
+echo "$(date): copying ${outdir} to minio:sync/subsample/${cruise}/${instrument}/${timestamp}" 1>&2
 rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
   "${outdir}" \
   "minio:sync/subsample/${cruise}/${instrument}/${timestamp}"

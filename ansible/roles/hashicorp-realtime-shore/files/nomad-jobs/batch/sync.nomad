@@ -107,7 +107,7 @@ ssh -i /local/sshprivatekey2 -o "StrictHostKeyChecking no" -o "UserKnownHostsFil
   "bash -c 'mkdir ~/realtime-sync 2>/dev/null'"
 
 echo "$(date -u): rsync-ing data to shore" 1>&2
-timeout -k 60s 600s \
+timeout 600s \
   rsync -e 'ssh -i /local/sshprivatekey2 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null"' \
     -au --timeout 600 --progress --stats --bwlimit=300000 \
     /jobs_data/sync/ \

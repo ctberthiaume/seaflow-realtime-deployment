@@ -101,69 +101,6 @@ consul kv get "seaflow-analysis/${NOMAD_META_instrument}/dbgz" | \
 
       template {
         data = <<EOH
-CREATE VIEW IF NOT EXISTS stat AS
-  SELECT
-    opp.file as file,
-    sfl.date as time,
-    sfl.lat as lat,
-    sfl.lon as lon,
-    sfl.ocean_tmp as temp,
-    sfl.salinity as salinity,
-    sfl.par as par,
-    vct.quantile as quantile,
-    vct.pop as pop,
-    sfl.stream_pressure as stream_pressure,
-    sfl.file_duration as file_duration,
-    sfl.event_rate as event_rate,
-    opp.opp_evt_ratio as opp_evt_ratio,
-    vct.count as n_count,
-    vct.chl_1q as chl_1q,
-    vct.chl_med as chl_med,
-    vct.chl_3q as chl_3q,
-    vct.pe_1q as pe_1q,
-    vct.pe_med as pe_med,
-    vct.pe_3q as pe_3q,
-    vct.fsc_1q as fsc_1q,
-    vct.fsc_med as fsc_med,
-    vct.fsc_3q as fsc_3q,
-    vct.diam_lwr_1q as diam_lwr_1q,
-    vct.diam_lwr_med as diam_lwr_med,
-    vct.diam_lwr_3q as diam_lwr_3q,
-    vct.diam_mid_1q as diam_mid_1q,
-    vct.diam_mid_med as diam_mid_med,
-    vct.diam_mid_3q as diam_mid_3q,
-    vct.diam_upr_1q as diam_upr_1q,
-    vct.diam_upr_med as diam_upr_med,
-    vct.diam_upr_3q as diam_upr_3q,
-    vct.Qc_lwr_1q as Qc_lwr_1q,
-    vct.Qc_lwr_med as Qc_lwr_med,
-    vct.Qc_lwr_mean as Qc_lwr_mean,
-    vct.Qc_lwr_3q as Qc_lwr_3q,
-    vct.Qc_mid_1q as Qc_mid_1q,
-    vct.Qc_mid_med as Qc_mid_med,
-    vct.Qc_mid_mean as Qc_mid_mean,
-    vct.Qc_mid_3q as Qc_mid_3q,
-    vct.Qc_upr_1q as Qc_upr_1q,
-    vct.Qc_upr_med as Qc_upr_med,
-    vct.Qc_upr_mean as Qc_upr_mean,
-    vct.Qc_upr_3q as Qc_upr_3q
-  FROM
-    opp, vct, sfl
-  WHERE
-    opp.quantile == vct.quantile
-    AND
-    opp.file == vct.file
-    AND
-    opp.file == sfl.file
-  ORDER BY
-    time, pop ASC;
-
-        EOH
-        destination = "/local/stat.sql"
-      }
-
-      template {
-        data = <<EOH
 #!/usr/bin/env bash
 # Perform SeaFlow setup and filtering
 
@@ -197,10 +134,6 @@ if [ ! -e "$dbfile" ]; then
   seaflowpy db create -c "$cruise" -s "$serial" -d "$dbfile" || exit $?
 fi
 
-# Fix stat table to not care if there are more than one filter params defined
-sqlite3 "$dbfile" 'drop view stat'
-sqlite3 "$dbfile" < /local/stat.sql
-
 # Overwrite any existing filter and gating params with the base db pulled from
 # consul
 echo "Overwriting filter, gating, poly tables in ${dbfile} with data from consul"
@@ -210,6 +143,10 @@ sqlite3 "${dbfile}" 'drop table gating' || exit $?
 sqlite3 ${NOMAD_ALLOC_DIR}/data/base.db ".dump gating" | sqlite3 "${dbfile}" || exit $?
 sqlite3 "${dbfile}" 'drop table poly' || exit $?
 sqlite3 ${NOMAD_ALLOC_DIR}/data/base.db ".dump poly" | sqlite3 "${dbfile}" || exit $?
+sqlite3 "${dbfile}" 'drop table gating_plan' || exit $?
+sqlite3 ${NOMAD_ALLOC_DIR}/data/base.db ".dump gating_plan" | sqlite3 "${dbfile}" || exit $?
+sqlite3 "${dbfile}" 'drop table filter_plan' || exit $?
+sqlite3 ${NOMAD_ALLOC_DIR}/data/base.db ".dump filter_plan" | sqlite3 "${dbfile}" || exit $?
 
 # Find and import all SFL files in rawdatadir
 echo "Importing SFL data in $rawdatadir"
@@ -220,7 +157,7 @@ seaflowpy db import-sfl -f "${outdir}/${cruise}.concatenated.sfl" "$dbfile" || e
 
 # Filter new files with seaflowpy
 echo "Filtering data in ${rawdatadir} and writing to ${outdir}"
-seaflowpy filter local -p 2 --delta -e "$rawdatadir" -d "$dbfile" -o "$outdir/${cruise}_opp" || exit $?
+seaflowpy filter -p 2 --delta -e "$rawdatadir" -d "$dbfile" -o "$outdir/${cruise}_opp" || exit $?
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
@@ -407,8 +344,8 @@ if ((! is.numeric(volume)) || (volume < 0)) {
   volume <- NULL
 }
 
-serial <- popcycle::get.inst(db)
-cruise <-popcycle::get.cruise(db)
+serial <- popcycle::get_inst(db)
+cruise <-popcycle::get_cruise(db)
 quantile_ <- "2.5"
 
 dated_msg <- function(...) {
@@ -435,13 +372,8 @@ message("--------------")
 ############################
 ### ANALYZE NEW FILE(s) ###
 ############################
-opp_list <- popcycle::get.opp.files(db, all.files=FALSE)
-vct_list <- unique(popcycle::get.vct.table(db)$file)
-files_to_gate <- setdiff(opp_list, vct_list)
-dated_msg(paste0("gating ", length(files_to_gate), " files"))
-if (length(files_to_gate) > 0) {
-  popcycle::classify.opp.files(db, opp_dir, files_to_gate, vct_dir)
-}
+dated_msg("Starting gating")
+popcycle::classify_opp_files(db, opp_dir, NULL, vct_dir)
 dated_msg("Completed gating")
 
 ##########################
@@ -449,16 +381,16 @@ dated_msg("Completed gating")
 ##########################
 # Create SFL table
 dated_msg("Creating SFL table")
-meta <- create_realtime_meta(db, quantile_, volume=volume)
+meta <- popcycle::create_realtime_meta(db, quantile_, volume=volume)
 dated_msg("Created SFL table")
 # Create population statistics table with no abundance
 dated_msg("Creating pop table with no abundance")
-stats_no_abund <- create_realtime_bio(db, quantile_, correction_=correction, with_abundance=FALSE)
+stats_no_abund <- popcycle::create_realtime_bio(db, quantile_, correction=correction, with_abundance=FALSE)
 dated_msg("Created pop table with no abundance")
 
 # Add abundance
 dated_msg("Creating pop table with abundance")
-pop <- create_realtime_bio(db, quantile_, correction_=correction, with_abundance=FALSE)
+pop <- popcycle::create_realtime_bio(db, quantile_, correction=correction, with_abundance=FALSE)
 volumes <- popcycle::create_volume_table(meta, time_expr=NULL)
 pop <- dplyr::left_join(pop, volumes, by="date")
 pop_idx <- (pop$pop == "prochloro") | (pop$pop == "synecho")
@@ -482,7 +414,7 @@ if (stats_abund_file != "") {
   dated_msg("saving stats / bio file with abundance")
   filetype <- paste0("SeaFlowPopAbundance_", inst)
   description <- paste0("SeaFlow population data for instrument ", inst)
-  write_realtime_bio_tsdata(
+  popcycle::write_realtime_bio_tsdata(
     pop, stats_abund_file, project=cruise, filetype=filetype, description=description
   )
   dated_msg("saved stats / bio file with abundance")
@@ -492,7 +424,7 @@ if (stats_no_abund_file != "") {
   dated_msg("saving stats / bio file without abundance")
   filetype <- paste0("SeaFlowPop_", inst)
   description <- paste0("SeaFlow population data without abundance for instrument ", inst)
-  write_realtime_bio_tsdata(
+  popcycle::write_realtime_bio_tsdata(
     stats_no_abund, stats_no_abund_file, project=cruise, filetype=filetype, description=description
   )
   dated_msg("saved stats / bio file without abundance")
