@@ -193,96 +193,6 @@ seaflowpy filter -p 2 --delta -e "$rawdatadir" -d "$dbfile" -o "$outdir/${cruise
 #!/usr/bin/env Rscript
 library(tidyverse)
 
-#' Create a metadata tibble for one quantile appopriate for realtime analysis
-#'
-#' @param db popcycle database file.
-#' @param quantile OPP filtering quantile to use.
-#' @param volume Use a constant volume value, overriding any calculated values.
-#' @return A tibble of realtime SFL and OPP table data
-#' @export
-create_realtime_meta <- function(db, quantile_, volume=NULL) {
-  quantile_ <- as.numeric(quantile_)
-  
-  ### Retrieve metadata
-  ## Retrieve SFL table
-  sfl <- popcycle::get.sfl.table(db)
-  # format time
-  sfl$date <- as.POSIXct(sfl$date, format="%FT%T", tz="UTC")
-  # retrieve flow rate (mL min-1) of detectable volume
-  fr <- popcycle::flowrate(sfl$stream_pressure, inst=popcycle::get.inst(db))$flow_rate
-  # convert to microL min-1
-  fr <- fr * 1000
-  # acquisition time (min)
-  acq.time <- sfl$file_duration/60
-  if (is.null(volume)) {
-    # volume in microL
-    sfl$volume <- round(fr * acq.time , 0)
-  } else {
-    sfl$volume <- volume
-  }
-
-  ## Retrive OPP table
-  # retrieve opp/evt
-  opp <- tibble::as_tibble(popcycle::get.opp.table(db))
-  opp <- opp[opp$quantile == quantile_, ]
-  opp$date <- as.POSIXct(opp$date, format="%FT%T", tz="UTC")
-  
-  ## merge all metadata
-  meta <- tibble::as_tibble(merge(sfl, opp, by="date"))
-  meta <- meta %>% dplyr::select(
-    date, lat, lon, conductivity, salinity, ocean_tmp, par, stream_pressure,
-    event_rate, volume, all_count, opp_count, evt_count, opp_evt_ratio
-  )
-
-  return(meta)
-}
-
-#' Create a population data tibble for one quantile from the VCT
-#'
-#' @param db popcycle database file.
-#' @param quantile OPP filtering quantile to use.
-#' @param with_abundance Include volume normalized "abundance" column
-#' @return A tibble of realtime population data
-create_realtime_bio <- function(db, quantile_, correction_=NULL, with_abundance=FALSE) {
-  bio <- tibble::as_tibble(popcycle::get.stat.table(db)) %>%
-    dplyr::mutate(date=as.POSIXct(time, format="%FT%T", tz="UTC")) %>%
-    dplyr::filter(quantile == quantile_) %>%
-    dplyr::select(date, pop, n_count, abundance, diam_mid_med, diam_lwr_med) %>%
-    dplyr::rename(diam_mid=diam_mid_med, diam_lwr=diam_lwr_med) %>%
-    dplyr::mutate(correction=correction_)
-
-  if (! with_abundance) {
-    bio <- bio %>% dplyr::select(-c("abundance"))
-  }
-  return(bio)
-}
-
-#' Write population data as a TSDATA file
-#'
-#' @param bio Population dataframe created by create_realtime_bio()
-#' @param project Project identifier
-#' @param outfile Output file path
-#' @param filetype Filetype identifier
-#' @param description Long form description of this file
-write_realtime_bio_tsdata <- function(bio, project, outfile, filetype="SeaFlowPop", description="SeaFlow population data") {
-  bio <- bio %>% dplyr::rename(time=date)
-  fh <- file(outfile, open="wt")
-  writeLines(filetype, fh)
-  writeLines(project, fh)
-  writeLines(description, fh)
-  if ("abundance" %in% colnames(bio)) {
-    writeLines(paste("ISO8601 timestamp", "NA", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
-    writeLines(paste("time", "category", "integer", "float", "float", "float", "float", sep="\t"), fh)
-    writeLines(paste("NA", "NA", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
-  } else {
-    writeLines(paste("ISO8601 timestamp", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
-    writeLines(paste("time", "category", "integer", "float", "float", "float", sep="\t"), fh)
-    writeLines(paste("NA", "NA", "NA", "NA", "NA", "NA", sep="\t"), fh)
-  }
-  close(fh)
-  readr::write_delim(bio, outfile, delim="\t", col_names=TRUE, append=TRUE)
-}
-
 parser <- optparse::OptionParser(usage="usage: realtime-classify.R --db FILE --vct-dir FILE --opp-dir DIR [options]")
 # Have a separate instrument option here because in some cases the serial and
 # instrument name may differ. The serial will be used in the database to look up
@@ -316,6 +226,9 @@ parser <- optparse::add_option(parser, c("--correction"), type="double", default
 parser <- optparse::add_option(parser, c("--volume"), type="double", default=-1,
                                help="Use a constant volume value instead of calculating from SFL.",
                                metavar="NUMBER")
+parser <- optparse::add_option(parser, c("--cores"), type="integer", default=1,
+                               help="Number of cores to use.",
+                               metavar="NUMBER")
 
 p <- optparse::parse_args2(parser)
 if (p$options$instrument == "" || p$options$db == "" || p$options$opp_dir == "" || p$options$vct_dir == "") {
@@ -324,6 +237,7 @@ if (p$options$instrument == "" || p$options$db == "" || p$options$opp_dir == "" 
   optparse::print_help(parser)
   quit(save="no", status=10)
 } else {
+  cores <- p$options$cores
   inst <- p$options$instrument
   db <- p$options$db
   opp_dir <- p$options$opp_dir
@@ -372,8 +286,11 @@ message("--------------")
 ############################
 ### ANALYZE NEW FILE(s) ###
 ############################
+dated_msg("Starting filtering")
+popcycle::filter_evt_files(db, evt_dir, NULL, opp_dir, cores = cores)
+dated_msg("Completed filtering")
 dated_msg("Starting gating")
-popcycle::classify_opp_files(db, opp_dir, NULL, vct_dir)
+popcycle::classify_opp_files(db, opp_dir, NULL, vct_dir, cores = cores)
 dated_msg("Completed gating")
 
 ##########################
