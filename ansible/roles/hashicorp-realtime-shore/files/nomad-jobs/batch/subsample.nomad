@@ -18,14 +18,13 @@ job "subsample" {
     meta_required = ["instrument"]
   }
 
-  # No restart attempts
-  reschedule {
-    attempts = 0
-    unlimited = false
-  }
-
   group "subsample" {
     count = 1
+
+    # No restart attempts
+    restart {
+      attempts = 0
+    }
 
     volume "jobs_data" {
       type = "host"

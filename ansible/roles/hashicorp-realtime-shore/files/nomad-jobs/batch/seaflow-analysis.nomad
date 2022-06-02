@@ -9,7 +9,7 @@ job "seaflow-analysis" {
   type = "batch"
 
   periodic {
-    cron = "5,20,35,50 * * * *"  // at 5,20,35,50 min every hour
+    cron = "00,15,30,45 * * * *"  // 00,15,30,45 min past every hour
     prohibit_overlap = true
     time_zone = "UTC"
   }
@@ -23,7 +23,7 @@ job "seaflow-analysis" {
 
     # No restart attempts
     restart {
-      attempts = 1
+      attempts = 0
     }
 
     volume "jobs_data" {

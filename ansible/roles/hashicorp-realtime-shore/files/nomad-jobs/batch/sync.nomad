@@ -9,19 +9,18 @@ job "sync" {
   type = "batch"
 
   periodic {
-    cron = "15 * * * *"  // at 15 min past every hour
+    cron = "15,45 * * * *"  // at 15 and 45 min past every hour
     prohibit_overlap = true
     time_zone = "UTC"
   }
 
-  # No restart attempts
-  reschedule {
-    attempts = 0
-    unlimited = false
-  }
-
   group "sync" {
     count = 1
+
+    # No restart attempts
+    restart {
+      attempts = 1
+    }
 
     volume "jobs_data" {
       type = "host"
