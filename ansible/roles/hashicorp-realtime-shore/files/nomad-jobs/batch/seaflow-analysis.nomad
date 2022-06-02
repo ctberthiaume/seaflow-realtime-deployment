@@ -18,14 +18,13 @@ job "seaflow-analysis" {
     meta_required = ["instrument"]
   }
 
-  # No restart attempts
-  reschedule {
-    attempts = 1
-    unlimited = false
-  }
-
   group "seaflow-analysis" {
     count = 1
+
+    # No restart attempts
+    restart {
+      attempts = 1
+    }
 
     volume "jobs_data" {
       type = "host"
@@ -156,8 +155,8 @@ seaflowpy sfl print $(/usr/bin/find "$rawdatadir" -name '*.sfl' | sort) > "${out
 seaflowpy db import-sfl -f "${outdir}/${cruise}.concatenated.sfl" "$dbfile" || exit $?
 
 # Filter new files with seaflowpy
-echo "Filtering data in ${rawdatadir} and writing to ${outdir}"
-seaflowpy filter -p 2 --delta -e "$rawdatadir" -d "$dbfile" -o "$outdir/${cruise}_opp" || exit $?
+# echo "Filtering data in ${rawdatadir} and writing to ${outdir}"
+# seaflowpy filter -p 2 --delta -e "$rawdatadir" -d "$dbfile" -o "$outdir/${cruise}_opp" || exit $?
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
@@ -205,6 +204,9 @@ parser <- optparse::add_option(parser, c("--instrument"), type="character", defa
 parser <- optparse::add_option(parser, c("--db"), type="character", default="",
                                help="Popcycle database file. Required.",
                                metavar="FILE")
+parser <- optparse::add_option(parser, c("--evt-dir"), type="character", default="",
+                               help="EVT directory. Required.",
+                               metavar="DIR")
 parser <- optparse::add_option(parser, c("--opp-dir"), type="character", default="",
                                help="OPP directory. Required.",
                                metavar="DIR")
@@ -231,20 +233,21 @@ parser <- optparse::add_option(parser, c("--cores"), type="integer", default=1,
                                metavar="NUMBER")
 
 p <- optparse::parse_args2(parser)
-if (p$options$instrument == "" || p$options$db == "" || p$options$opp_dir == "" || p$options$vct_dir == "") {
-  # Do nothing if instrument, db, opp_dir, vct_dir are not specified
-  message("error: must specify all of --instrument, --db, --opp-dir, --vct-dir")
+if (p$options$instrument == "" || p$options$db == "" || p$options$evt_dir == "" || p$options$opp_dir == "" || p$options$vct_dir == "") {
+  # Do nothing if instrument, db, evt_dir, opp_dir, vct_dir are not specified
+  message("error: must specify all of --instrument, --db, --evt-dir, --opp-dir, --vct-dir")
   optparse::print_help(parser)
   quit(save="no", status=10)
 } else {
   cores <- p$options$cores
   inst <- p$options$instrument
   db <- p$options$db
+  evt_dir <- p$options$evt_dir
   opp_dir <- p$options$opp_dir
   vct_dir <- p$options$vct_dir
 
-  if (!dir.exists(opp_dir) || !file.exists(db)) {
-    message(paste0("opp_dir or db does not exist"))
+  if (!file.exists(db)) {
+    message(paste0("db does not exist"))
     quit(save=FALSE, status=11)
   }
 }
@@ -273,6 +276,7 @@ message(paste0("db = ", db))
 message(paste0("cruise (from db) = ", cruise))
 message(paste0("serial (from db) = ", serial))
 message(paste0("instrument = ", inst))
+message(paste0("evt-dir = ", evt_dir))
 message(paste0("opp-dir = ", opp_dir))
 message(paste0("vct-dir = ", vct_dir))
 message(paste0("stats-no-abund-file = ", stats_no_abund_file))
@@ -367,6 +371,7 @@ source ${NOMAD_ALLOC_DIR}/data/vars
 
 outdir="/jobs_data/seaflow-analysis/${cruise}/${instrument}"
 dbfile="${outdir}/${cruise}.db"
+evtdir="/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt"
 oppdir="${outdir}/${cruise}_opp"
 vctdir="${outdir}/${cruise}_vct"
 statsabundfile="${outdir}/stats-abund.${cruise}.${instrument}.tsdata"
@@ -381,13 +386,15 @@ timeout -k 60s 2h \
 Rscript --slave /local/cron_job.R \
   --instrument "${instrument}" \
   --db "${dbfile}" \
+  --evt-dir "${evtdir}" \
   --opp-dir "${oppdir}" \
   --vct-dir "${vctdir}" \
   --stats-abund-file "${statsabundfile}" \
   --stats-no-abund-file "${statsnoabundfile}" \
   --sfl-file "${sflfile}" \
   --correction "${correction}" \
-  --volume "${volume}"
+  --volume "${volume}" \
+  --cores 2
 status=$?
 if [[ ${status} -eq 124 ]]; then
   echo "$(date -u): classification killed by timeout sigint" 1>&2
