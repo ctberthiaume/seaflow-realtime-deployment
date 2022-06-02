@@ -18,13 +18,13 @@ job "seaflow-transfer" {
     meta_required = ["instrument"]
   }
 
-  reschedule {
-    attempts = 1
-    unlimited = false
-  }
-
   group "seaflow-transfer" {
     count = 1
+
+    # No restart attempts
+    restart {
+      attempts = 0
+    }
 
     volume "jobs_data" {
       type = "host"
