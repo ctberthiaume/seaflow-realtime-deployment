@@ -104,7 +104,7 @@ echo "$(date -u): checking for shore sync target folder" 1>&2
 timeout 180s \
 ssh -i /local/sshprivatekey2 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null" \
   "ubuntu@${SYNC_HOST}" \
-  "bash -c 'mkdir ~/realtime-sync 2>/dev/null'" 1>&2
+  "bash -c '[[ ! -d ~/realtime-sync ]] && mkdir ~/realtime-sync'" 1>&2
 status=$?
 if [[ ${status} -eq 124 ]]; then
   echo "$(date -u): ssh mkdir killed by timeout sigint" 1>&2
