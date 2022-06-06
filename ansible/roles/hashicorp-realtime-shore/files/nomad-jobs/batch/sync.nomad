@@ -101,9 +101,20 @@ rclone --log-level INFO --config /secrets/rclone.config copy --checksum minio:us
 # rsync to shore
 # Make sure remote path exists
 echo "$(date -u): checking for shore sync target folder" 1>&2
+timeout 180s \
 ssh -i /local/sshprivatekey2 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null" \
   "ubuntu@${SYNC_HOST}" \
-  "bash -c 'mkdir ~/realtime-sync 2>/dev/null'"
+  "bash -c 'mkdir ~/realtime-sync 2>/dev/null'" 1>&2
+status=$?
+if [[ ${status} -eq 124 ]]; then
+  echo "$(date -u): ssh mkdir killed by timeout sigint" 1>&2
+elif [[ ${status} -eq 137 ]]; then
+  echo "$(date -u): ssh mkdir killed by timeout sigkill" 1>&2
+elif [[ ${status} -gt 0 ]]; then
+  echo "$(date -u): ssh mkdir exited with an error, status = ${status}" 1>&2
+else
+  echo "$(date -u): ssh mkdir completed successfully" 1>&2
+fi
 
 echo "$(date -u): rsync-ing data to shore" 1>&2
 timeout 600s \
