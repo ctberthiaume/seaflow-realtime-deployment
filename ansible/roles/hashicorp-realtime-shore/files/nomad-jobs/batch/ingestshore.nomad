@@ -68,9 +68,7 @@ volumes <- popcycle::create_volume_table(sfl %>% rename(date=time), time_expr=NU
 
 # Add abundance
 pop <- dplyr::left_join(pop, volumes, by="time")
-pop_idx <- (pop$pop == "prochloro") | (pop$pop == "synecho")
-pop[, "n_per_uL"] <- pop[, "n_count"] / pop[, "volume_large"]
-pop[pop_idx, "n_per_uL"] <- pop[pop_idx, "n_count"] / pop[pop_idx, "volume_small"]
+pop[, "n_per_uL"] <- pop[, "n_count"] / pop[, "volume_virtualcore"]
 
 pop <- pop %>%
   dplyr::select(time, pop, n_count, n_per_uL, diam_mid, diam_lwr, correction) %>%
