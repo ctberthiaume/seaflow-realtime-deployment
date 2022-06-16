@@ -9,7 +9,7 @@ job "seaflog" {
   type = "batch"
 
   periodic {
-    cron = "*/15 * * * *"  // every 15 minutes
+    cron = "*/10 * * * *"
     prohibit_overlap = true
     time_zone = "UTC"
   }

@@ -9,7 +9,7 @@ job "sync" {
   type = "batch"
 
   periodic {
-    cron = "15,45 * * * *"  // at 15 and 45 min past every hour
+    cron = "05,20,35,50 * * * *"
     prohibit_overlap = true
     time_zone = "UTC"
   }

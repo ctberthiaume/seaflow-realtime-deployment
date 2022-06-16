@@ -9,7 +9,7 @@ job "retrieve-realtime-data" {
   type = "batch"
 
   periodic {
-    cron = "*/10 * * * *"  // every 10 minutes
+    cron = "*/5 * * * *"
     prohibit_overlap = true
     time_zone = "UTC"
   }

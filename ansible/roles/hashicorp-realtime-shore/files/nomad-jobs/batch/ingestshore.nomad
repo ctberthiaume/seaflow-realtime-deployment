@@ -9,7 +9,7 @@ job "ingestshore" {
   type = "batch"
 
   periodic {
-    cron = "02,12,22,32,42,52 * * * *"  // every 10 minutes with 2 minute offset
+    cron = "02,07,12,17,22,27,32,37,42,47,52,57 * * * *"  // every 5 minutes with 2 minute offset
     prohibit_overlap = true
     time_zone = "UTC"
   }

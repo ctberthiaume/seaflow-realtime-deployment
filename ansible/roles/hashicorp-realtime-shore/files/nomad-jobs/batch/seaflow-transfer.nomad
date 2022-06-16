@@ -9,7 +9,7 @@ job "seaflow-transfer" {
   type = "batch"
 
   periodic {
-    cron = "*/15 * * * *"  // every 15 minutes
+    cron = "*/5 * * * *"
     prohibit_overlap = true
     time_zone = "UTC"
   }
