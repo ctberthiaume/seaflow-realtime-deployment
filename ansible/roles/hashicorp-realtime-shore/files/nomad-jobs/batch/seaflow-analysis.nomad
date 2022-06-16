@@ -54,6 +54,11 @@ job "seaflow-analysis" {
         data = <<EOH
 #!/usr/bin/env bash
 
+# Can't use normal nomad template with consul key here because we need to
+# use the env var NOMAD_META_instrument to construct the correct consul key
+# for this particular instrument. This is set by nomad at run time, not at job
+# registration time, so we have to use `consul kv get`.
+
 set -e
 
 # Get cruise name
@@ -66,13 +71,8 @@ echo "serial=$(consul kv get seaflowconfig/${NOMAD_META_instrument}/serial)" >> 
 echo "correction=$(consul kv get seaflow-analysis/${NOMAD_META_instrument}/abundance-correction)" >> ${NOMAD_ALLOC_DIR}/data/vars
 # Get volume constant
 echo "volume=$(consul kv get seaflow-analysis/${NOMAD_META_instrument}/volume-constant)" >> ${NOMAD_ALLOC_DIR}/data/vars
-
-# First extract the base db, which is base64 encoded gzipped content
-# Work backward from this
-# gzip -c base.db | base64 | consul kv put "seaflow-analysis/${instrument}/dbgz" -
-consul kv get "seaflow-analysis/${NOMAD_META_instrument}/dbgz" | \
-  base64 --decode | \
-  gzip -dc > ${NOMAD_ALLOC_DIR}/data/base.db
+# Get realtime DB repo URL
+echo "repodburl=$(consul kv get seaflow-analysis/${NOMAD_META_instrument}/db-repo-url)" >> ${NOMAD_ALLOC_DIR}/data/vars
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
@@ -112,19 +112,36 @@ echo "seaflowpy version = $(seaflowpy version)"
 
 outdir="/jobs_data/seaflow-analysis/${cruise}/${instrument}"
 rawdatadir="/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt"
+repodir="${outdir}/realtime-dbs"
+repodbfile="${repodir}/dbs/${cruise}_${instrument}.db"
 dbfile="${outdir}/${cruise}.db"
 
 echo "cruise=${cruise}"
 echo "instrument=${instrument}"
 echo "outdir=${outdir}"
 echo "rawdatadir=${rawdatadir}"
+echo "repodir=${repodir}"
+echo "repodburl=${repodburl}"
 echo "serial=${serial}"
 echo "dbfile=${dbfile}"
+echo "repodbfile=${repodbfile}"
 
 # Create output directory if it doesn't exist
 if [[ ! -d "${outdir}" ]]; then
   echo "Creating output directory ${outdir}"
   mkdir -p "${outdir}" || exit $?
+fi
+
+# Clone and pull the db repo
+if [[ ! -d "${repodir}" ]]; then
+  git clone "${repodburl}" "${repodir}"
+fi
+(cd "${repodir}" && git pull)
+
+# Check for git parameters db file
+if [[ ! -e "${repodbfile}" ]]; then
+  echo "could not find git repo db parameters file: ${repodbfile}"
+  exit 1
 fi
 
 # Create an new empty database if one doesn't exist
@@ -133,19 +150,17 @@ if [ ! -e "$dbfile" ]; then
   seaflowpy db create -c "$cruise" -s "$serial" -d "$dbfile" || exit $?
 fi
 
-# Overwrite any existing filter and gating params with the base db pulled from
-# consul
-echo "Overwriting filter, gating, poly tables in ${dbfile} with data from consul"
+echo "Overwriting filter, gating, poly tables in ${dbfile} with data from git repo"
 sqlite3 "${dbfile}" 'drop table filter' || exit $?
-sqlite3 ${NOMAD_ALLOC_DIR}/data/base.db ".dump filter" | sqlite3 "${dbfile}" || exit $?
+sqlite3 "${repodbfile}" ".dump filter" | sqlite3 "${dbfile}" || exit $?
 sqlite3 "${dbfile}" 'drop table gating' || exit $?
-sqlite3 ${NOMAD_ALLOC_DIR}/data/base.db ".dump gating" | sqlite3 "${dbfile}" || exit $?
+sqlite3 "${repodbfile}" ".dump gating" | sqlite3 "${dbfile}" || exit $?
 sqlite3 "${dbfile}" 'drop table poly' || exit $?
-sqlite3 ${NOMAD_ALLOC_DIR}/data/base.db ".dump poly" | sqlite3 "${dbfile}" || exit $?
+sqlite3 "${repodbfile}" ".dump poly" | sqlite3 "${dbfile}" || exit $?
 sqlite3 "${dbfile}" 'drop table gating_plan' || exit $?
-sqlite3 ${NOMAD_ALLOC_DIR}/data/base.db ".dump gating_plan" | sqlite3 "${dbfile}" || exit $?
+sqlite3 "${repodbfile}" ".dump gating_plan" | sqlite3 "${dbfile}" || exit $?
 sqlite3 "${dbfile}" 'drop table filter_plan' || exit $?
-sqlite3 ${NOMAD_ALLOC_DIR}/data/base.db ".dump filter_plan" | sqlite3 "${dbfile}" || exit $?
+sqlite3 "${repodbfile}" ".dump filter_plan" | sqlite3 "${dbfile}" || exit $?
 
 # Find and import all SFL files in rawdatadir
 echo "Importing SFL data in $rawdatadir"
