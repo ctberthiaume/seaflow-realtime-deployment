@@ -9,7 +9,7 @@ job "seaflow-analysis-shore" {
   type = "batch"
 
   periodic {
-    cron = "5,20,35,50 * * * *"  // at 5,20,35,50 min every hour
+    cron = "*/10 * * * *"
     prohibit_overlap = true
     time_zone = "UTC"
   }
