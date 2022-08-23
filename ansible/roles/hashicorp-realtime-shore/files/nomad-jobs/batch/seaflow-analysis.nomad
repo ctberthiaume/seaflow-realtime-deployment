@@ -94,14 +94,14 @@ echo "repodburl=$(consul kv get seaflow-analysis/${NOMAD_META_instrument}/db-rep
       }
 
       resources {
-        memory = 5000
+        memory = 200
         cpu = 300
       }
 
       template {
         data = <<EOH
 #!/usr/bin/env bash
-# Perform SeaFlow setup and filtering
+# Perform SeaFlow setup
 
 set -e
 
@@ -168,10 +168,6 @@ echo "Saving cleaned and concatenated SFL file at ${outdir}/${cruise}.sfl"
 # Just going to assume there are no newlines in filenames here (there shouldn't be!)
 seaflowpy sfl print $(/usr/bin/find "$rawdatadir" -name '*.sfl' | sort) > "${outdir}/${cruise}.concatenated.sfl" || exit $?
 seaflowpy db import-sfl -f "${outdir}/${cruise}.concatenated.sfl" "$dbfile" || exit $?
-
-# Filter new files with seaflowpy
-# echo "Filtering data in ${rawdatadir} and writing to ${outdir}"
-# seaflowpy filter -p 2 --delta -e "$rawdatadir" -d "$dbfile" -o "$outdir/${cruise}_opp" || exit $?
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
@@ -198,7 +194,7 @@ seaflowpy db import-sfl -f "${outdir}/${cruise}.concatenated.sfl" "$dbfile" || e
       }
 
       resources {
-        memory = 8000
+        memory = 10000
         cpu = 300
       }
 
