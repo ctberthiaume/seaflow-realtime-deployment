@@ -315,22 +315,10 @@ dated_msg("Completed gating")
 dated_msg("Creating SFL table")
 meta <- popcycle::create_realtime_meta(db, quantile_, volume=volume)
 dated_msg("Created SFL table")
-# Create population statistics table with no abundance
-dated_msg("Creating pop table with no abundance")
-stats_no_abund <- popcycle::create_realtime_bio(db, quantile_, correction=correction, with_abundance=FALSE)
-dated_msg("Created pop table with no abundance")
-
-# Add abundance
-dated_msg("Creating pop table with abundance")
-pop <- popcycle::create_realtime_bio(db, quantile_, correction=correction, with_abundance=FALSE)
-volumes <- popcycle::create_volume_table(meta, time_expr=NULL)
-pop <- dplyr::left_join(pop, volumes, by="date")
-pop_idx <- (pop$pop == "prochloro") | (pop$pop == "synecho")
-pop[, "abundance"] <- pop[, "n_count"] / pop[, "volume_large"]
-pop[pop_idx, "abundance"] <- pop[pop_idx, "n_count"] / pop[pop_idx, "volume_small"]
-pop <- pop %>%
+# Create population statistics table
+dated_msg("Creating pop table")
+pop <- popcycle::create_realtime_bio(db, quantile_, correction=correction, volume=volume) %>%
   dplyr::select(date, pop, n_count, abundance, diam_mid, diam_lwr, correction)
-dated_msg("Created pop table with abundance")
 
 if (sfl_file != "") {
   dated_msg("saving SFL / metadata file")
@@ -357,7 +345,7 @@ if (stats_no_abund_file != "") {
   filetype <- paste0("SeaFlowPop_", inst)
   description <- paste0("SeaFlow population data without abundance for instrument ", inst)
   popcycle::write_realtime_bio_tsdata(
-    stats_no_abund, stats_no_abund_file, project=cruise, filetype=filetype, description=description
+    pop %>% dplyr::select(-c(abundance)), stats_no_abund_file, project=cruise, filetype=filetype, description=description
   )
   dated_msg("saved stats / bio file without abundance")
 }
