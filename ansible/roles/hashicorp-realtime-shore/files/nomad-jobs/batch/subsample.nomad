@@ -58,13 +58,11 @@ job "subsample" {
 cruise="{{ key "cruise/name" }}"
 start="{{ key "cruise/start" }}"
 instrument=${NOMAD_META_instrument}
-timestamp="$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)"
-outdir=/jobs_data/subsample/${cruise}/${instrument}/${timestamp}
+outdir=/jobs_data/subsample/${cruise}/${instrument}
 
 echo "cruise=${cruise}" >> ${NOMAD_ALLOC_DIR}/data/vars
 echo "start=${start}" >> ${NOMAD_ALLOC_DIR}/data/vars
 echo "instrument=${instrument}" >> ${NOMAD_ALLOC_DIR}/data/vars
-echo "timestamp=${timestamp}"  >> ${NOMAD_ALLOC_DIR}/data/vars
 echo "outdir=${outdir}" >> ${NOMAD_ALLOC_DIR}/data/vars
 
 # Get subsample parameters for this instrument as shell variable assignments
@@ -92,95 +90,8 @@ consul kv get -recurse "subsample/${NOMAD_META_instrument}/" | \
       }
 
       resources {
-        memory = 5000
+        memory = 2000
         cpu = 300
-      }
-
-      template {
-        data = <<EOH
-#!/usr/bin/env python3
-# Sample from OPP parquet for previous hour
-
-import datetime
-import glob
-import logging
-import os
-import sys
-from datetime import datetime, timedelta, timezone
-
-import click
-import pandas as pd
-import seaflowpy.seaflowfile as sfile
-
-logging.basicConfig(format='%(asctime)s: %(message)s', level=logging.INFO, datefmt="%Y-%m-%dT%H:%M:%S%z")
-
-
-@click.command()
-@click.option("--count", type=int, default=100000, help="Maximum number of particles to subsample")
-@click.option("--seed", type=int, help="Random state seed for reproducibility")
-@click.argument("oppdir", type=click.Path(exists=True, dir_okay=True, file_okay=False, readable=True))
-@click.argument("outdir", type=click.Path(exists=False, dir_okay=True, file_okay=False))
-def cli(count, seed, oppdir, outdir):
-    logging.info("count=%d seed=%s oppdir=%s outdir=%s", count, seed, oppdir, outdir)
-
-    opps = []
-    for o in sorted(glob.glob(f"{oppdir}/*.parquet")):
-      parts = os.path.basename(o).split(".")[0].split("T")
-      parts[1] = parts[1].replace("-", ":")
-      opps.append({
-        "filename": os.path.basename(o),
-        "path": o,
-        "date": datetime.fromisoformat("T".join(parts))
-      })
-
-    now = datetime.now(timezone.utc)
-    prevhour = (now - timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-    
-    logging.info("current time is %s, last hour was %s", now.isoformat(), prevhour.isoformat())
-    
-    matches = [o for o in opps if o["date"] == prevhour]
-    if len(matches) == 0:
-      logging.info("no OPP files found for the previous hour")
-    elif len(matches) > 1:
-      logging.warning("> 1 OPP file found for the previous hour: %s", ", ".join([m["filename"] for m in matches]))
-    else:
-      input_file = matches[0]
-      logging.info("found OPP file for the previous hour: %s", input_file["filename"])
-      output_path = os.path.join(outdir, input_file["filename"].replace(".parquet", "") + ".sample.parquet")
-      logging.info("writing to %s", output_path)
-      if not os.path.exists(output_path):
-        try:
-          os.makedirs(outdir, exist_ok=True)
-        except OSError as e:
-          logging.error("could not create output directory %s: %s", outdir, e)
-          sys.exit(1)
-
-        try:
-          df = pd.read_parquet(input_file["path"])
-        except (IOError, OSError) as e:
-          logging.error("could not read parquet file %s: %s", input_file["path"], e)
-          sys.exit(1)
-        count = min(count, len(df))
-        if seed is not None:
-          sub = df.sample(n=count, random_state=seed)
-        else:
-          sub = df.sample(n=count)
-        logging.info("sampled %d / %d rows", len(sub), len(df))
-        try:
-          sub.to_parquet(output_path)
-        except (IOError, OSError) as e:
-          logging.error("could not write parquet file %s: %s", output_path, e)
-          sys.exit(1)
-      else:
-        logging.info("output file %s already exists, skipping", output_path)
-
-
-if __name__ == "__main__":
-    cli(auto_envvar_prefix='SAMPLE')
-
-        EOH
-        destination = "/local/sample.py"
-        perms = "755"
       }
 
       template {
@@ -194,71 +105,104 @@ source ${NOMAD_ALLOC_DIR}/data/vars
 
 seaflowpy version
 
-[[ -d "$outdir" ]] || mkdir -p "$outdir"
-
-# Full sample for noise estimation
-echo "$(date -u): Subsampling with no filters" 1>&2
-timeout -k 60s 600s seaflowpy evt sample \
+# First get date range for last hour of EVT data
+echo "$(date -u): EVT date range" 1>&2
+timeout -k 60s 600s seaflowpy evt dates \
   --min-date "${start}" \
   --tail-hours "${sample_tail_hours}" \
-  --count "${sample_noise_count}" \
-  --file-fraction 1.0 \
-  --verbose \
-  --outpath "${outdir}/last-${sample_tail_hours}-hours.fullSample.parquet" \
-  "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt" 1>&2
+  "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt" | tee "${NOMAD_ALLOC_DIR}/data/evt_dates" 1>&2
 status=$?
 if [[ ${status} -eq 124 ]]; then
-  echo "$(date -u): full subsample killed by timeout sigint" 1>&2
+  echo "$(date -u): evt dates killed by timeout sigint" 1>&2
 elif [[ ${status} -eq 137 ]]; then
-  echo "$(date -u): full subsample killed by timeout sigkill" 1>&2
+  echo "$(date -u): evt dates killed by timeout sigkill" 1>&2
 elif [[ ${status} -gt 0 ]]; then
-  echo "$(date -u): full subsample exited with an error, status = ${status}" 1>&2
+  echo "$(date -u): evt dates exited with an error, status = ${status}" 1>&2
 else
-  echo "$(date -u): full subsample completed successfully" 1>&2
+  echo "$(date -u): evt dates completed successfully" 1>&2
+fi
+
+if [[ ! -s "${NOMAD_ALLOC_DIR}/data/evt_dates" ]]; then
+  echo "$(date -u): No EVT data within date range" 1>&2
+  exit
+fi
+
+mindate=$(awk '{print $1}' "${NOMAD_ALLOC_DIR}/data/evt_dates")
+maxdate=$(awk '{print $2}' "${NOMAD_ALLOC_DIR}/data/evt_dates")
+
+outdir="${outdir}/${mindate}"
+[[ -d "${outdir}" ]] || mkdir "${outdir}"
+
+# Full sample for noise estimation
+if [[ ! -e "${outdir}/last-${sample_tail_hours}-hours.fullSample.parquet" ]]; then
+  echo "$(date -u): Subsampling with no filters" 1>&2
+  timeout -k 60s 600s seaflowpy evt sample \
+    --min-date "${mindate}" \
+    --max-date "${maxdate}" \
+    --count "${sample_noise_count}" \
+    --file-fraction 1.0 \
+    --verbose \
+    --outpath "${outdir}/last-${sample_tail_hours}-hours.fullSample.parquet" \
+    "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt" 1>&2
+  status=$?
+  if [[ ${status} -eq 124 ]]; then
+    echo "$(date -u): full subsample killed by timeout sigint" 1>&2
+  elif [[ ${status} -eq 137 ]]; then
+    echo "$(date -u): full subsample killed by timeout sigkill" 1>&2
+  elif [[ ${status} -gt 0 ]]; then
+    echo "$(date -u): full subsample exited with an error, status = ${status}" 1>&2
+  else
+    echo "$(date -u): full subsample completed successfully" 1>&2
+  fi
 fi
 
 # Bead sample
-echo "$(date -u): Subsampling for beads" 1>&2
-timeout -k 60s 600s seaflowpy evt sample \
-  --min-date "${start}" \
-  --tail-hours "${sample_tail_hours}" \
-  --count 1500 \
-  --noise-filter \
-  --min-fsc "${bead_sample_min_fsc}" \
-  --min-pe "${bead_sample_min_pe}" \
-  --min-chl "${bead_sample_min_chl}"  \
-  --multi --file-fraction 1.0 \
-  --verbose \
-  --outpath "${outdir}/last-${sample_tail_hours}-hours.beadSample.parquet" \
-  "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt" 1>&2
-status=$?
-if [[ ${status} -eq 124 ]]; then
-  echo "$(date -u): bead subsample killed by timeout sigint" 1>&2
-elif [[ ${status} -eq 137 ]]; then
-  echo "$(date -u): bead subsample killed by timeout sigkill" 1>&2
-elif [[ ${status} -gt 0 ]]; then
-  echo "$(date -u): bead subsample exited with an error, status = ${status}" 1>&2
-else
-  echo "$(date -u): bead subsample completed successfully" 1>&2
+if [[ ! -e "${outdir}/last-${sample_tail_hours}-hours.beadSample.parquet" ]]; then
+  echo "$(date -u): Subsampling for beads" 1>&2
+  timeout -k 60s 600s seaflowpy evt sample \
+    --min-date "${mindate}" \
+    --max-date "${maxdate}" \
+    --count 1500 \
+    --noise-filter \
+    --min-fsc "${bead_sample_min_fsc}" \
+    --min-pe "${bead_sample_min_pe}" \
+    --min-chl "${bead_sample_min_chl}"  \
+    --multi --file-fraction 1.0 \
+    --verbose \
+    --outpath "${outdir}/last-${sample_tail_hours}-hours.beadSample.parquet" \
+    "/jobs_data/seaflow-transfer/${cruise}/${instrument}/evt" 1>&2
+  status=$?
+  if [[ ${status} -eq 124 ]]; then
+    echo "$(date -u): bead subsample killed by timeout sigint" 1>&2
+  elif [[ ${status} -eq 137 ]]; then
+    echo "$(date -u): bead subsample killed by timeout sigkill" 1>&2
+  elif [[ ${status} -gt 0 ]]; then
+    echo "$(date -u): bead subsample exited with an error, status = ${status}" 1>&2
+  else
+    echo "$(date -u): bead subsample completed successfully" 1>&2
+  fi
 fi
 
 # OPP sample
-echo "$(date -u): Subsampling OPP" 1>&2
-timeout -k 60s 600s python3 /local/sample.py \
-  --count "${opp_sample_count}" \
-  "/jobs_data/seaflow-analysis/${cruise}/${instrument}/${cruise}_opp" \
-  "${outdir}"
-status=$?
-if [[ ${status} -eq 124 ]]; then
-  echo "$(date -u): OPP subsample killed by timeout sigint" 1>&2
-elif [[ ${status} -eq 137 ]]; then
-  echo "$(date -u): OPP subsample killed by timeout sigkill" 1>&2
-elif [[ ${status} -gt 0 ]]; then
-  echo "$(date -u): OPP subsample exited with an error, status = ${status}" 1>&2
-else
-  echo "$(date -u): OPP subsample completed successfully" 1>&2
+if [[ ! -e "${outdir}/${mindate}.1H.opp.sample.parquet" ]]; then
+  echo "$(date -u): Subsampling OPP" 1>&2
+  timeout -k 60s 600s seaflowpy opp sample \
+    --min-date "${mindate}" \
+    --max-date "${maxdate}" \
+    --count "${opp_sample_count}" \
+    --outpath "${outdir}/${mindate}.1H.opp.sample.parquet" \
+    "/jobs_data/seaflow-analysis/${cruise}/${instrument}/${cruise}_opp"
+  status=$?
+  if [[ ${status} -eq 124 ]]; then
+    echo "$(date -u): OPP subsample killed by timeout sigint" 1>&2
+  elif [[ ${status} -eq 137 ]]; then
+    echo "$(date -u): OPP subsample killed by timeout sigkill" 1>&2
+  elif [[ ${status} -gt 0 ]]; then
+    echo "$(date -u): OPP subsample exited with an error, status = ${status}" 1>&2
+  else
+    echo "$(date -u): OPP subsample completed successfully" 1>&2
+  fi
 fi
-
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
@@ -286,7 +230,7 @@ fi
       }
 
       resources {
-        memory = 200
+        memory = 100
         cpu = 300
       }
 
@@ -319,10 +263,10 @@ set -e
 source ${NOMAD_ALLOC_DIR}/data/vars
 
 # Copy for sync to shore
-echo "$(date): copying ${outdir} to minio:sync/subsample/${cruise}/${instrument}/${timestamp}" 1>&2
-rclone --log-level INFO --config /secrets/rclone.config copy --checksum \
+echo "$(date): copying ${outdir} to minio:sync/subsample/${cruise}/${instrument}" 1>&2
+rclone --log-level INFO --config /secrets/rclone.config copy \
   "${outdir}" \
-  "minio:sync/subsample/${cruise}/${instrument}/${timestamp}"
+  "minio:sync/subsample/${cruise}/${instrument}"
 
         EOH
         destination = "local/run.sh"
