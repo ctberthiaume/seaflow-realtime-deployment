@@ -131,7 +131,6 @@ mindate=$(awk '{print $1}' "${NOMAD_ALLOC_DIR}/data/evt_dates")
 maxdate=$(awk '{print $2}' "${NOMAD_ALLOC_DIR}/data/evt_dates")
 
 outdir="${outdir}/${mindate}"
-[[ -d "${outdir}" ]] || mkdir "${outdir}"
 
 # Full sample for noise estimation
 if [[ ! -e "${outdir}/last-${sample_tail_hours}-hours.fullSample.parquet" ]]; then
