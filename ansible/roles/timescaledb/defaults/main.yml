@@ -1,3 +1,3 @@
 ---
-timescaledb_image: timescale/timescaledb
-timescaledb_version: 2.4.1-pg12
+timescaledb_image: timescale/timescaledb-ha
+timescaledb_version: pg14.5-ts2.7.2-latest

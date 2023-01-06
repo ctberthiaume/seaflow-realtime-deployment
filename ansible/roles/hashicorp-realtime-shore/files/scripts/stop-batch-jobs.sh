@@ -57,8 +57,7 @@ echo "jobs to stop are ..."
 nomad job status | awk -v patt="^$jobname" '$1 ~ patt {print $1}'
 echo ""
 if [[ $purge -eq 1 ]]; then
-  nomad job status | awk -v patt="^$jobname" '$1 ~ patt {print $1}' | xargs -n 1 -I {} nomad job stop -yes -detach -purge {}
+  nomad job status | awk -v patt="^$jobname" '$1 ~ patt {print $1}' | xargs -I {} nomad job stop -yes -detach -purge {}
 else
-  nomad job status | awk -v patt="^$jobname" '$1 ~ patt {print $1}' | xargs -n 1 -I {} nomad job stop -yes -detach {}
+  nomad job status | awk -v patt="^$jobname" '$1 ~ patt {print $1}' | xargs -I {} nomad job stop -yes -detach {}
 fi
-

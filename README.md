@@ -19,63 +19,68 @@ pip install ansible passlib cryptography # passlib needed on MacOS for password 
 
 ## Create shore (test) and ship, instrument (test) VM OVA files
 
+Manually create a VirtualBox machine, installing Ubuntu 22.04 server.
+Call it realtime-ship.
+
+Export as OVA file.
+
 ```shell
-cd packer/realtime-shore
-packer init virtualbox-realtime-ship.pkr.hcl
-packer build \
-  -var ssh_private_key_file=<path-to-shore-private-key> \
-  -var ssh_public_key_file=<path-to-shore-public-key> \
-  virtualbox-realtime-ship.pkr.hcl
-
-cd packer/realtime-ship
-packer init virtualbox-realtime-ship.pkr.hcl
-packer build \
-  -var ssh_private_key_file=<path-to-ship-private-key> \
-  -var ssh_public_key_file=<path-to-ship-public-key> \
-  virtualbox-realtime-ship.pkr.hcl
-
-# Build instrument test VM
-packer init virtualbox-realtime-instrument.pkr.hcl
-packer build \
-  -var ssh_private_key_file=<path-to-ship-private-key> \
-  -var ssh_public_key_file=<path-to-ship-public-key> \
-  virtualbox-realtime-instrument.pkr.hcl
+# Find the VM name
+VBoxManage list vms
+# Export
+VBoxManage export realtime-ship -o newvm.ova
 ```
 
 ## Import VMs on bare metal hosts
 
-From the repo root
+On the machine to be deployed
 
 ```shell
-VBoxManage import packer/realtime-ship/output-realtime-ship/*.ova
-VBoxManage import packer/realtime-shore/output-realtime-shore/*.ova
-VBoxManage import packer/realtime-instrument/output-realtime-instrument/*.ova
+VBoxManage import realtime-ship.ova
 
 # Note VM names
 VBoxManage list vms
 VBoxManage list runningvms
 ```
 
-## Set up VirtualBox shared folder
+Import as the `realtime-instrument` VM as well if you'd like to test with a
+simulated data producer.
 
-Set a shared folder for the realtime ship VM.
-Because this configuration depends on the host filesystem it isn't added when the VM is created by Packer.
-Create it after the VM has been imported to Virtualbox with `VBoxManage`.
-This location won't be automounted until we set that up later.
+## Set up the guest for static IP
 
-Important note: the virtualbox share name can't be the same as the folder mount
-point in Ubunut. I don't know why, but the folder wouldn't automount at boot
-until I changed the name. I have no idea.
-https://askubuntu.com/questions/1355061/shared-folder-was-not-found-vboxsf
+If using bridged networking, you can change from DHCP to static IP.
+
+Create a new file `/etc/netplan/01-static-adapter1.yaml` and add this text,
+replacing network details as needed. If any other yaml files are present rename
+them with a `.hide` or other extension.
 
 ```shell
-VBoxManage sharedfolder add realtime-ship --name jobsdata --hostpath=$(pwd)/jobs_data
-VBoxManage sharedfolder add realtime-instrument --name cruisereplaydata --hostpath=$(pwd)/cruisereplay_data
+network:
+  ethernets:
+    enp0s3:
+      dhcp4: false
+      addresses: [192.168.1.52/24]
+      routes:
+        - to: default
+          via: 192.168.1.1
+      nameservers:
+        addresses: [192.168.1.1]
+  version: 2
+```
+
+Then run
+
+```shell
+sudo netplan generate
+sudo netplan try
+sudo netplan apply
 ```
 
 ## Set up VirtualBox port forwarding for shore test VM
 
-The guest will likely be run with NAT networking, in which case port forwarding will need to be set up.
+If the guest is set up with NAT networking, port forwarding will need to configured.
+If using bridged networking this isn't necessary.
+
 Use `VBoxManage modifyvm --natpf1` for VMs which are stopped,
 and `VBoxManage controlvm natpf1` for running vms.
 
@@ -107,39 +112,78 @@ and update ansible inventory files to use these host name aliases.
 
 ## Update credentials on ship or shore system
 
-Update the default user password, turn off password SSH access, disable root login.
+* add an SSH public key
+* update the default user password
+* turn off password SSH access
+* disable root login.
 
-The secrets.yml ansible-vault encrypted file should contain the `realtime_user_password` ansible variable.
+Manually log in to the VM and add an SSH public key before running the `playbook-credentials.yml` Ansible playbook.
+
+The `vault/secrets.yml` ansible-vault encrypted file should contain the `realtime_user_password` ansible variable.
 If there should be separate passwords for each system use separate secrets files.
 
 ```shell
 cd ansible
 
-ansible-playbook -i inventories/realtime_ship.yml --ask-vault-pass \
+ansible-playbook -i inventories/realtime_ship.yml --ask-become-pass --ask-vault-pass \
   --extra-vars="@vault/secrets.yml" \
   playbook-credentials.yml
 
-ansible-playbook -i inventories/realtime_shore.yml --ask-vault-pass \
+ansible-playbook -i inventories/realtime_shore.yml --ask-become-pass --ask-vault-pass \
   --extra-vars="@vault/secrets.yml" \
   playbook-credentials.yml
+```
+
+## Set up VirtualBox shared folders
+
+Set a shared folders for the VMs. By default we'll place the `jobs_data` and
+`cruisereplay_data` folders in the root of this repo.
+
+Create it after the VM has been imported to Virtualbox with `VBoxManage`.
+This location won't be automounted until we set that up later.
+
+Important note: the virtualbox share name can't be the same as the folder mount
+point in Ubuntu. I don't know why, but the folder wouldn't automount at boot
+until I changed the name. I have no idea.
+https://askubuntu.com/questions/1355061/shared-folder-was-not-found-vboxsf
+
+First install virtualbox guest additions to support shared folders (vboxsf).
+
+```shell
+ansible-playbook -i inventories/realtime_ship.yml --ask-become-pass playbook-virtualbox-guest-additions.yml
+ansible-playbook -i inventories/realtime_instrument.yml --ask-become-pass playbook-virtualbox-guest-additions.yml
+```
+
+Then create the directories, shutdown the VMs, add the shared folders to the VMs, and start them again.
+
+```shell
+[[ -d ../jobs_data ]] || mkdir ../jobs_data
+VBoxManage controlvm realtime-ship acpipowerbutton
+VBoxManage sharedfolder add realtime-ship --name jobsdata --hostpath=$(pwd)/../jobs_data
+VBoxManage startvm --type headless realtime-ship
+
+# To access cruise replay simulated data for testing on a separate VM
+[[ -d ../cruisereplay_data ]] || mkdir ../cruisereplay_data
+VBoxManage controlvm realtime-instrument acpipowerbutton
+VBoxManage sharedfolder add realtime-instrument --name cruisereplaydata --hostpath=$(pwd)/cruisereplay_data
+VBoxManage startvm --type headless realtime-instrument
+```
+
+Then configure the Linux automounts for the shared folders
+
+```shell
+ansible-playbook -i inventories/realtime-ship.yml --ask-become-pass playbook-mount-share-jobs-data.yml
+ansible-playbook -i inventories/realtime-instrument.yml --ask-become-pass playbook-mount-share-cruisereplay-data.yml
 ```
 
 ## Provision software on ship and shore systems
 
 ```shell
-cd ansible
-
-# Set up the shared folder mount on the realtime ship VM
-ansible-playbook -i inventories/realtime-ship.yml playbook-mount-share-jobs-data.yml
-# Full provisioning
-ansible-playbook -i inventories/realtime-ship.yml playbook-realtime-ship.yml
-
-# Set up the shared folder mount on the realtime instrument VM
-ansible-playbook -i inventories/realtime-instrument.yml playbook-mount-share-cruisereplay-data.yml
-# Full provisioning
-ansible-playbook -i inventories/realtime-instrument.yml playbook-realtime-instrument.yml
-
-
+# ship
+ansible-playbook -i inventories/realtime-ship.yml --ask-become-pass playbook-realtime-ship.yml
+# test instrument
+ansible-playbook -i inventories/realtime-instrument.yml --ask-become-pass playbook-realtime-instrument.yml
+# shore
 ansible-playbook -i inventories/realtime-shore.yml playbook-realtime-shore.yml
 ```
 

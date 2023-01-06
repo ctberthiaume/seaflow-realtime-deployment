@@ -26,8 +26,9 @@ job "caddy" {
 
       check {
         name     = "alive"
-        type     = "tcp"
-        port     = "http"
+        type     = "http"
+        port     = "caddy-admin"
+        path     = "metrics"
         interval = "10s"
         timeout  = "2s"
       }

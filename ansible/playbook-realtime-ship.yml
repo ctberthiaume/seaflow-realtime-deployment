@@ -33,7 +33,7 @@
           - nmap
           - parallel
           - pigz
-          - postgresql-client-12
+          - postgresql-client-14
           - python3-pip
           - python3-venv
           - rsync
@@ -61,6 +61,39 @@
 - hosts: all
   become: yes
   become_method: sudo
+  tasks:
+    - name: Check if reboot required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required_file
+
+    - name: Reboot if required
+      reboot:
+      when: reboot_required_file.stat.exists == true
+
+- hosts: all
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: Create jobs_data directory
+      become: yes
+      file:
+        path: "{{ jobs_data }}"
+        owner: "{{ realtime_user }}"
+        group: "{{ realtime_user }}"
+        state: directory
+
+    - name: "Mount VM shared folder"
+      ansible.posix.mount:
+        path: "{{ jobs_data }}"
+        src: jobsdata
+        fstype: vboxsf
+        opts: "rw,relatime,uid={{ realtime_user }},gid={{ realtime_user }}"
+        state: mounted
+
+- hosts: all
+  become: yes
+  become_method: sudo
   roles:
     - tsdata
     - seaflow-transfer
@@ -77,8 +110,6 @@
   roles:
     - caddy
     - consul
-    - consul-template
-    - vault
     - nomad
     - grafana
     - timescaledb

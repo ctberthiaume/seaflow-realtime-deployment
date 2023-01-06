@@ -8,11 +8,11 @@ job "dashboard" {
 
     network {
       port "grafana" {
-        static = 3000
+        static       = 3000
         host_network = "localhost"
       }
       port "postgres" {
-        static = 5432
+        static       = 5432
         host_network = "localhost"
       }
     }
@@ -22,10 +22,10 @@ job "dashboard" {
       port = "grafana"
       task = "grafana"
       check {
-        type = "http"
-        method = "GET"
-        path = "/api/health"
-        timeout = "3s"
+        type     = "http"
+        method   = "GET"
+        path     = "/api/health"
+        timeout  = "3s"
         interval = "30s"
       }
     }
@@ -35,12 +35,12 @@ job "dashboard" {
       port = "postgres"
       task = "timescaledb"
       check {
-        task = "timescaledb"
-        type = "script"
-        timeout = "3s"
+        task     = "timescaledb"
+        type     = "script"
+        timeout  = "3s"
         interval = "30s"
-        command = "/usr/local/bin/pg_isready"
-        args = ["-U", "postgres"]
+        command  = "/usr/bin/pg_isready"
+        args     = ["-U", "postgres"]
       }
     }
 
@@ -51,57 +51,53 @@ job "dashboard" {
       user = "root"
 
       lifecycle {
-        hook = "prestart"
+        hook    = "prestart"
         sidecar = false
       }
 
       config {
-        image = "grafana/grafana:local"
+        image        = "grafana/grafana:local"
         network_mode = "host"
-        entrypoint = ["/bin/bash"]
-        args = ["/local/run.sh"]
+        entrypoint   = ["/bin/bash"]
+        args         = ["/local/run.sh"]
 
         mount {
-          type = "volume"
+          type   = "volume"
           target = "/var/lib/grafana"
           source = "grafana_data"
         }
 
         mount {
-          type = "bind"
+          type   = "bind"
           target = "/plugin-zips"
           source = "/var/lib/grafana/plugin-zips"
         }
 
         mount {
-          type = "volume"
+          type   = "volume"
           target = "/etc/dashboards"
           source = "grafana_dashboards"
         }
 
         mount {
-          type = "volume"
+          type   = "volume"
           target = "/etc/grafana/provisioning/dashboards"
           source = "grafana_provisioning_dashboards"
         }
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/bin/bash
 
 # Install plugins
-zipfile=/plugin-zips/ae3e-plotly-panel-0.5.0.zip
-if [[ -f "$zipfile" ]]; then
+for zipfile in /plugin-zips/*.zip; do
   if [[ ! -d /var/lib/grafana/plugins/$(basename "$zipfile" .zip) ]]; then
     echo "Installing $zipfile"
     unzip "$zipfile" -d /var/lib/grafana/plugins/$(basename "$zipfile" .zip)
     chown -R grafana /var/lib/grafana/plugins/$(basename "$zipfile" .zip)
   fi
-else
-  echo "No plugin zip file $zipfile found"
-  ls -al /plugin-zips
-fi
+done
 
 # Configure dashboard provisioning
 cat << EOHINNER > /etc/grafana/provisioning/dashboards/providers.yml
@@ -121,12 +117,12 @@ EOHINNER
 chown grafana /etc/dashboards
         EOH
         destination = "local/run.sh"
-        perms = "755"
+        perms       = "755"
       }
 
       resources {
         memory = 200
-        cpu = 300
+        cpu    = 300
       }
     }
 
@@ -134,16 +130,16 @@ chown grafana /etc/dashboards
       driver = "docker"
 
       template {
-        data = <<EOH
+        data        = <<EOH
 GF_SECURITY_ADMIN_PASSWORD="{{ key "grafana/GF_SECURITY_ADMIN_PASSWORD" }}"
 ROPASSWORD="{{ key "timescaledb/ROPASSWORD" }}"
         EOH
         destination = "secrets/file.env"
-        env = true
+        env         = true
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 GF_LOG_LEVEL=info
 GF_ANALYTICS_REPORTING_ENABLED=false
 GF_ANALYTICS_CHECK_FOR_UPDATES=false
@@ -161,34 +157,34 @@ PGPORT=5432
 ROUSER="{{ key "timescaledb/ROUSER" }}"
         EOH
         destination = "local/file.env"
-        env = true
+        env         = true
       }
 
       config {
-        image = "grafana/grafana:local"
+        image        = "grafana/grafana:local"
         network_mode = "host"
         #ports = [ "grafana" ]
 
         mount {
-          type = "volume"
+          type   = "volume"
           target = "/var/lib/grafana"
           source = "grafana_data"
         }
 
         mount {
-          type = "volume"
+          type   = "volume"
           target = "/etc/dashboards"
           source = "grafana_dashboards"
         }
 
         mount {
-          type = "volume"
+          type   = "volume"
           target = "/etc/grafana/provisioning/datasources"
           source = "grafana_datasources"
         }
 
         mount {
-          type = "volume"
+          type   = "volume"
           target = "/etc/grafana/provisioning/dashboards"
           source = "grafana_provisioning_dashboards"
         }
@@ -196,7 +192,7 @@ ROUSER="{{ key "timescaledb/ROUSER" }}"
 
       resources {
         memory = 300
-        cpu = 2000
+        cpu    = 300
       }
     }
 
@@ -204,17 +200,17 @@ ROUSER="{{ key "timescaledb/ROUSER" }}"
       driver = "docker"
 
       template {
-        data = <<EOH
+        data        = <<EOH
 # Timescaledb secrets env vars
 POSTGRES_PASSWORD="{{key "timescaledb/POSTGRES_PASSWORD"}}"
 TIMESCALEDB_TELEMETRY=off
         EOH
         destination = "secrets/file.env"
-        env = true
+        env         = true
       }
 
       config {
-        image = "timescale/timescaledb:local"
+        image = "timescale/timescaledb-ha:local"
         args = [
           "-c",
           "listen_addresses=127.0.0.1"
@@ -223,7 +219,7 @@ TIMESCALEDB_TELEMETRY=off
         #ports = [ "timescaledb" ]
 
         mount {
-          type = "volume"
+          type   = "volume"
           target = "/var/lib/postgresql/data"
           source = "postgresql_data"
         }
@@ -231,7 +227,7 @@ TIMESCALEDB_TELEMETRY=off
 
       resources {
         memory = 300
-        cpu = 300
+        cpu    = 300
       }
     }
   }

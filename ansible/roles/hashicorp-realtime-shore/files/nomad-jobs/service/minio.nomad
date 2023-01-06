@@ -1,3 +1,8 @@
+variable "realtime_user" {
+  type = string
+  default = "ubuntu"
+}
+
 job "minio" {
   datacenters = ["dc1"]
 
@@ -11,6 +16,11 @@ job "minio" {
       source = "minio"
     }
 
+    volume "jobs_data" {
+      type = "host"
+      source = "jobs_data"
+    }
+
     network {
       port "minio-api" {
         static = 9000
@@ -18,6 +28,10 @@ job "minio" {
       }
       port "minio-console" {
         static = 9001
+        host_network = "localhost"
+      }
+      port "webhook" {
+        static = 9010
         host_network = "localhost"
       }
     }
@@ -35,28 +49,99 @@ job "minio" {
       }
     }
 
-    task "wait_for_webhook" {
+    service {
+      name = "webhook"
+      port = "webhook"
+      check {
+        type = "http"
+        method = "GET"
+        path = "/hooks/healthcheck"
+        port = "webhook"
+        timeout = "10s"
+        interval = "30s"
+      }
+    }
+
+    task "webhook" {
       lifecycle {
         hook = "prestart"
-        sidecar = false
+        sidecar = true
       }
 
       driver = "exec"
+
       config {
-        command = "/local/wait.sh"
+        command = "webhook"
+        args = [
+          "-verbose",
+          "-template",
+          "-port", "${NOMAD_PORT_webhook}",
+          "-hooks", "/local/hooks.json"
+        ]
+      }
+
+      user = var.realtime_user
+
+      resources {
+        memory = 200
+        cpu = 300
+      }
+
+      volume_mount {
+        volume = "jobs_data"
+        destination = "/jobs_data"
+      }
+
+      template {
+        data = <<EOH
+[
+  {
+    "id": "healthcheck",
+    "execute-command": "/bin/true",
+    "command-working-directory": "/",
+    "response-message": "healthy",
+    "response-headers": [
+      {
+        "name": "Access-Control-Allow-Origin",
+        "value": "*"
+      }
+    ]
+  },
+  {
+    "id": "minio",
+    "execute-command": "/local/handle_minio_event.sh",
+    "command-working-directory": "/",
+    "response-message": "successfully received minio event",
+    "response-headers": [
+      {
+        "name": "Access-Control-Allow-Origin",
+        "value": "*"
+      }
+    ],
+    "pass-arguments-to-command": [
+      {
+        "source": "payload",
+        "name": "Records.0.s3.bucket.name"
+      },
+      {
+        "source": "payload",
+        "name": "Records.0.s3.object.key"
+      }
+    ]
+  }
+]
+        EOH
+        destination = "/local/hooks.json"
       }
 
       template {
         data = <<EOH
 #!/bin/bash
 
-until curl -o /dev/null --silent --fail "http://127.0.0.1:9010/hooks/healthcheck"; do
-    echo "webhook server - not ready"
-    sleep 5
-done
-echo "webhook server - ready"
+echo nomad job dispatch --meta "bucket=$1" --meta "key=$2" ingest
+nomad job dispatch --meta "bucket=$1" --meta "key=$2" ingest
         EOH
-        destination = "/local/wait.sh"
+        destination = "/local/handle_minio_event.sh"
         perms = "755"
       }
     }
@@ -76,7 +161,7 @@ echo "webhook server - ready"
 MINIO_ROOT_USER="{{key "minio/MINIO_ROOT_USER"}}"
 MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
 #MINIO_NOTIFY_WEBHOOK_ENABLE_PRIMARY=on
-#MINIO_NOTIFY_WEBHOOK_ENDPOINT_PRIMARY="http://127.0.0.1:9010/hooks/minio"
+#MINIO_NOTIFY_WEBHOOK_ENDPOINT_PRIMARY="http://127.0.0.1:{{ env "NOMAD_PORT_webhook" }}/hooks/minio"
 #MINIO_NOTIFY_WEBHOOK_QUEUE_DIR=/var/lib/minio/events
         EOH
         destination = "secrets/file.env"
@@ -102,9 +187,7 @@ MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
     task "intial_setup" {
       lifecycle {
         hook = "poststart"
-        # shouldn't be a sidecar job, just a workaround for the bug detailed in
-        # the template below
-        sidecar = true
+        sidecar = false
       }
 
       driver = "exec"
@@ -202,11 +285,17 @@ mc admin policy add minio researcher-policy /local/researcher-policy.json
 mc admin policy set minio researcher-policy user={{ key "minio/researcher_user" }}
 
 # Configure webhooks notification endpoint
-if mc admin config get minio notify_webhook 2>&1 | grep "endpoint=http://127.0.0.1:9010/hooks/minio"; then
-    echo "webhook for http://127.0.0.1:9010/hooks/minio already enabled "
+echo "waiting for webhook server to come up"
+until curl -o /dev/null --silent --fail "http://127.0.0.1:{{ env "NOMAD_PORT_webhook" }}/hooks/healthcheck"; do
+    echo "webhook server - not ready"
+    sleep 5
+done
+echo "webhook server - ready"
+if mc admin config get minio notify_webhook 2>&1 | grep "endpoint=http://127.0.0.1:{{ env "NOMAD_PORT_webhook" }}/hooks/minio"; then
+    echo "webhook for http://127.0.0.1:{{ env "NOMAD_PORT_webhook" }}/hooks/minio already enabled "
 else
-    echo "enabling webhook for http://127.0.0.1:9010/hooks/minio"
-    mc admin config set minio notify_webhook:1  endpoint="http://127.0.0.1:9010/hooks/minio" queue_dir="/var/lib/minio/events" || exit 1
+    echo "enabling webhook for http://127.0.0.1:{{ env "NOMAD_PORT_webhook" }}/hooks/minio"
+    mc admin config set minio notify_webhook:1  endpoint="http://127.0.0.1:{{ env "NOMAD_PORT_webhook" }}/hooks/minio" queue_dir="/var/lib/minio/events" || exit 1
     # Restart minio
       mc admin service restart minio || exit 1
 fi
@@ -219,16 +308,6 @@ for bucket in data dashboard user-data; do
       echo "creating webhook notification event for minio/$bucket at arn:minio:sqs::1:webhook"
       mc event add "minio/$bucket" arn:minio:sqs::1:webhook --event put || exit 1
   fi
-done
-
-# Sleep forever to avoid entering unhealthy job state. Just sleeping for more
-# than min_healthy_time doesn't seem to be reliable.
-# https://www.nomadproject.io/docs/job-specification/update#min_healthy_time
-# Workaround for this bug
-# https://github.com/hashicorp/nomad/issues/10058
-while true
-do
-  sleep 3600
 done
         EOH
         destination = "/local/setup.sh"

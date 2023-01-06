@@ -1,4 +1,4 @@
 ---
-
 nomad_data: /var/local/nomad_data
-nomad_version: 1.1.7
+nomad_version: 1.4.3
+nomad_apt_version: "{{ nomad_version }}-1"

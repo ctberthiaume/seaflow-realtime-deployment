@@ -1,4 +1,0 @@
-vault
-=========
-
-Install vault.
