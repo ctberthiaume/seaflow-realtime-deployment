@@ -2,8 +2,8 @@
 # defaults file for minio
 
 minio_name: minio
-minio_checksum: sha256:a32f408920bafd5a6c073b0a9fb2fdbb8c35cfb8c723162d06a71b10dd990050
-minio_version: RELEASE.2022-08-25T07-17-05Z
+minio_checksum: sha256:e3711a11e76a291aba1116ef1517ede335d31fb200c369e55a79b9be641b0b91
+minio_version: RELEASE.2023-01-02T09-40-09Z
 minio_version_success_string: "{{ minio_version }}"
 minio_version_cmd: minio --version
 minio_url: "https://dl.min.io/server/minio/release/linux-amd64/archive/minio.{{ minio_version }}"

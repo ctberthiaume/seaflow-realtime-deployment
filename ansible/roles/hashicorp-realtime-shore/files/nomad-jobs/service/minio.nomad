@@ -1,5 +1,5 @@
 variable "realtime_user" {
-  type = string
+  type    = string
   default = "ubuntu"
 }
 
@@ -12,26 +12,26 @@ job "minio" {
     count = 1
 
     volume "minio" {
-      type = "host"
+      type   = "host"
       source = "minio"
     }
 
     volume "jobs_data" {
-      type = "host"
+      type   = "host"
       source = "jobs_data"
     }
 
     network {
       port "minio-api" {
-        static = 9000
+        static       = 9000
         host_network = "localhost"
       }
       port "minio-console" {
-        static = 9001
+        static       = 9001
         host_network = "localhost"
       }
       port "webhook" {
-        static = 9010
+        static       = 9010
         host_network = "localhost"
       }
     }
@@ -41,10 +41,10 @@ job "minio" {
       port = "minio-api"
       task = "minio"
       check {
-        type = "http"
-        method = "GET"
-        path = "/minio/health/live"
-        timeout = "10s"
+        type     = "http"
+        method   = "GET"
+        path     = "/minio/health/live"
+        timeout  = "10s"
         interval = "30s"
       }
     }
@@ -53,18 +53,18 @@ job "minio" {
       name = "webhook"
       port = "webhook"
       check {
-        type = "http"
-        method = "GET"
-        path = "/hooks/healthcheck"
-        port = "webhook"
-        timeout = "10s"
+        type     = "http"
+        method   = "GET"
+        path     = "/hooks/healthcheck"
+        port     = "webhook"
+        timeout  = "10s"
         interval = "30s"
       }
     }
 
     task "webhook" {
       lifecycle {
-        hook = "prestart"
+        hook    = "prestart"
         sidecar = true
       }
 
@@ -84,16 +84,16 @@ job "minio" {
 
       resources {
         memory = 200
-        cpu = 300
+        cpu    = 300
       }
 
       volume_mount {
-        volume = "jobs_data"
+        volume      = "jobs_data"
         destination = "/jobs_data"
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 [
   {
     "id": "healthcheck",
@@ -135,28 +135,28 @@ job "minio" {
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/bin/bash
 
 echo nomad job dispatch --meta "bucket=$1" --meta "key=$2" ingest
 nomad job dispatch --meta "bucket=$1" --meta "key=$2" ingest
         EOH
         destination = "/local/handle_minio_event.sh"
-        perms = "755"
+        perms       = "755"
       }
     }
 
     task "minio" {
       driver = "exec"
-      user = "minio"
+      user   = "minio"
 
       volume_mount {
-        volume = "minio"
+        volume      = "minio"
         destination = "/var/lib/minio"
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 # Minio env vars
 MINIO_ROOT_USER="{{key "minio/MINIO_ROOT_USER"}}"
 MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
@@ -165,7 +165,7 @@ MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
 #MINIO_NOTIFY_WEBHOOK_QUEUE_DIR=/var/lib/minio/events
         EOH
         destination = "secrets/file.env"
-        env = true
+        env         = true
       }
 
       config {
@@ -180,13 +180,13 @@ MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
 
       resources {
         memory = 500
-        cpu = 500
+        cpu    = 500
       }
     }
 
     task "intial_setup" {
       lifecycle {
-        hook = "poststart"
+        hook    = "poststart"
         sidecar = false
       }
 
@@ -197,11 +197,11 @@ MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
 
       resources {
         memory = 200
-        cpu = 500
+        cpu    = 500
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -245,16 +245,16 @@ MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 # Minio env vars
 MC_HOST_minio="http://{{key "minio/MINIO_ROOT_USER"}}:{{key "minio/MINIO_ROOT_PASSWORD"}}@127.0.0.1:{{ env "NOMAD_PORT_minio_api" }}"
         EOH
         destination = "secrets/file.env"
-        env = true
+        env         = true
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/bin/bash
 set -e
 
@@ -309,9 +309,10 @@ for bucket in data dashboard user-data; do
       mc event add "minio/$bucket" arn:minio:sqs::1:webhook --event put || exit 1
   fi
 done
+
         EOH
         destination = "/local/setup.sh"
-        perms = "755"
+        perms       = "755"
       }
     }
   }

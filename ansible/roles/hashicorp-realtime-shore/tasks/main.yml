@@ -1,5 +1,4 @@
 ---
-
 # These must exist in order for nomad to start
 - name: Create nomad host volume directories
   become: yes
@@ -52,6 +51,14 @@
   become: yes
   file:
     path: /etc/realtime/scripts
+    state: directory
+    owner: "{{ realtime_user }}"
+    group: "{{ realtime_user }}"
+
+- name: Create caddy file server directory
+  become: yes
+  file:
+    path: /srv/public_files
     state: directory
     owner: "{{ realtime_user }}"
     group: "{{ realtime_user }}"

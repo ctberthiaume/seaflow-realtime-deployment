@@ -223,21 +223,6 @@ realtime user. e.g.
 ansible-playbook -i ansible/inventories/vagrant.yml  -l sink --extra-vars "realtime_user=vagrant" ansible/playbook-sink.yml
 ```
 
-## Add popcycle sqlite3 database file to consul JSON
-
-For the popcycle Sqlite3 database, add it as a base64 encoded gzip string.
-Use this shell snippet to construct the correct JSON object for the database data.
-The base64 string should be around 30K in size for one set of gates.
-
-```shell
-cp mydb.db clean.db
-# Delete unneeded data
-sqlite3 clean.db 'delete from vct; delete from opp; delete from outlier; delete from sfl; vacuum;'
-# Make sure metadata table has correct cruise and instrument serial
-# ...
-printf "{\n    \"key\": \"seaflow-analysis/740/dbgz\",\n    \"value\": \"$(gzip -c clean.db | base64 -w 0)\"\n}\n"
-```
-
 ## Add a string with newlines to consul JSON
 
 JSON strings can't contain newline characters. They must be escaped as "\\n".

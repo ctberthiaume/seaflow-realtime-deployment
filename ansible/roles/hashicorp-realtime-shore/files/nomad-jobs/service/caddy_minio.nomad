@@ -8,15 +8,15 @@ job "caddy" {
 
     network {
       port "caddy-admin" {
-        static = 2019
+        static       = 2019
         host_network = "localhost"
       }
       port "http" {
-        static = 80
+        static       = 80
         host_network = "public"
       }
       port "https" {
-        static = 443
+        static       = 443
         host_network = "public"
       }
     }
@@ -38,25 +38,19 @@ job "caddy" {
       driver = "docker"
 
       config {
-        image = "caddy/caddy:local"
-        command = "caddy"
-        args = [ "run", "--environ", "--config", "/local/Caddyfile" ]
+        image        = "caddy/caddy:local"
+        command      = "caddy"
+        args         = ["run", "--environ", "--config", "/local/Caddyfile"]
         network_mode = "host"
 
         mount {
-          type = "volume"
+          type   = "volume"
           target = "/data"
           source = "caddy_data"
         }
 
         mount {
-          type = "bind"
-          target = "/srv/public_files"
-          source = "/srv/public_files"
-        }
-
-        mount {
-          type = "bind"
+          type   = "bind"
           target = "/srv/public_files"
           source = "/srv/public_files"
         }
@@ -64,13 +58,14 @@ job "caddy" {
 
       resources {
         memory = 50
-        cpu = 300
+        cpu    = 300
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 # grafana
 # for HTTP localhost use something like "http://localhost:3001"
+# for HTTP just enter the port ":3001"
 # for automatic HTTPS public site use the bare domain name like "example.com"
 "{{ key "caddy/grafana-site-address" }}" {
   redir /datafiles /datafiles/
