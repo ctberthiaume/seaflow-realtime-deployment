@@ -68,15 +68,13 @@ job "minio" {
         sidecar = true
       }
 
-      driver = "exec"
+      driver = "raw_exec"
 
       config {
-        command = "webhook"
+        command = "ingestwebhook"
         args = [
-          "-verbose",
-          "-template",
-          "-port", "${NOMAD_PORT_webhook}",
-          "-hooks", "/local/hooks.json"
+          "serv",
+          "-a", ":${NOMAD_PORT_webhook}"
         ]
       }
 
@@ -87,63 +85,10 @@ job "minio" {
         cpu    = 300
       }
 
-      volume_mount {
-        volume      = "jobs_data"
-        destination = "/jobs_data"
-      }
-
-      template {
-        data        = <<EOH
-[
-  {
-    "id": "healthcheck",
-    "execute-command": "/bin/true",
-    "command-working-directory": "/",
-    "response-message": "healthy",
-    "response-headers": [
-      {
-        "name": "Access-Control-Allow-Origin",
-        "value": "*"
-      }
-    ]
-  },
-  {
-    "id": "minio",
-    "execute-command": "/local/handle_minio_event.sh",
-    "command-working-directory": "/",
-    "response-message": "successfully received minio event",
-    "response-headers": [
-      {
-        "name": "Access-Control-Allow-Origin",
-        "value": "*"
-      }
-    ],
-    "pass-arguments-to-command": [
-      {
-        "source": "payload",
-        "name": "Records.0.s3.bucket.name"
-      },
-      {
-        "source": "payload",
-        "name": "Records.0.s3.object.key"
-      }
-    ]
-  }
-]
-        EOH
-        destination = "/local/hooks.json"
-      }
-
-      template {
-        data        = <<EOH
-#!/bin/bash
-
-echo nomad job dispatch --meta "bucket=$1" --meta "key=$2" ingest
-nomad job dispatch --meta "bucket=$1" --meta "key=$2" ingest
-        EOH
-        destination = "/local/handle_minio_event.sh"
-        perms       = "755"
-      }
+      # volume_mount {
+      #   volume      = "jobs_data"
+      #   destination = "/jobs_data"
+      # }
     }
 
     task "minio" {

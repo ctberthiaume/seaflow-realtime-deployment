@@ -73,3 +73,5 @@
     mode: 0755
   loop:
     - scripts/stop-batch-jobs.sh
+    - scripts/realtime-popcycle.R
+    - scripts/subsample-plots.R

@@ -1,0 +1,9 @@
+---
+ingestwebhook_name: ingestwebhook
+ingestwebhook_checksum: sha256:05a91691b2ab2ed6b32c3d4e1644897369d4ae3bf8ab8176520da14d22e6181f
+ingestwebhook_version: v0.2.0
+ingestwebhook_version_success_string: "{{ ingestwebhook_version }}"
+ingestwebhook_version_cmd: "{{ ingestwebhook_name }} version"
+ingestwebhook_downloaded_file: "ingestwebhook.{{ ingestwebhook_version }}.linux-amd64"
+ingestwebhook_url: "https://github.com/ctberthiaume/ingestwebhook/releases/download/{{ ingestwebhook_version }}/{{ ingestwebhook_downloaded_file }}"
+ingestwebhook_extracted_path: "{{ ingestwebhook_downloaded_file }}"

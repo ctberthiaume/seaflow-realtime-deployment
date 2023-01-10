@@ -1,0 +1,15 @@
+---
+# tasks file for ingestwebhook
+
+- name: Include executable_downloader role
+  include_role:
+    name: executable_downloader
+  vars:
+    execdl_name: "{{ ingestwebhook_name }}"
+    execdl_checksum: "{{ ingestwebhook_checksum }}"
+    execdl_version: "{{ ingestwebhook_version }}"
+    execdl_version_success_string: "{{ ingestwebhook_version_success_string }}"
+    execdl_version_cmd: "{{ ingestwebhook_version_cmd }}"
+    execdl_url: "{{ ingestwebhook_url }}"
+    execdl_downloaded_file: "{{ ingestwebhook_downloaded_file }}"
+    execdl_extracted_path: "{{ ingestwebhook_extracted_path }}"
