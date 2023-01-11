@@ -1,5 +1,5 @@
 variable "realtime_user" {
-  type = string
+  type    = string
   default = "ubuntu"
 }
 
@@ -12,7 +12,7 @@ job "ingestwatch" {
     count = 1
 
     volume "jobs_data" {
-      type = "host"
+      type   = "host"
       source = "jobs_data"
     }
 
@@ -22,7 +22,7 @@ job "ingestwatch" {
       user = var.realtime_user
 
       volume_mount {
-        volume = "jobs_data"
+        volume      = "jobs_data"
         destination = "/jobs_data"
       }
 
@@ -31,12 +31,12 @@ job "ingestwatch" {
       }
 
       resources {
-        memory = 50
-        cpu = 300
+        memory = 100
+        cpu    = 300
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 [minio]
 type = s3
 provider = Minio
@@ -51,11 +51,11 @@ server_side_encryption =
         EOH
         destination = "/secrets/rclone.config"
         change_mode = "restart"
-        perms = "644"
+        perms       = "644"
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env bash
 
 cruise={{ key "cruise/name" }}
@@ -87,7 +87,7 @@ done
 
         EOH
         destination = "local/run.sh"
-        perms = "755"
+        perms       = "755"
       }
     }
   }
