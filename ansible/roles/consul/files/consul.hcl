@@ -18,11 +18,13 @@ ui_config {
 
 advertise_addr = "127.0.0.1"
 
+bind_addr = "127.0.0.1"
+
 addresses {
-  dns = "127.0.0.1"
-  http = "127.0.0.1"
+  dns   = "127.0.0.1"
+  http  = "127.0.0.1"
   https = "127.0.0.1"
-  grpc = "127.0.0.1"
+  grpc  = "127.0.0.1"
 }
 
 log_file = "/var/log/consul/consul"

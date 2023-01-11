@@ -74,7 +74,7 @@ job "minio" {
         command = "ingestwebhook"
         args = [
           "serv",
-          "-a", ":${NOMAD_PORT_webhook}"
+          "-a", "127.0.0.1:${NOMAD_PORT_webhook}"
         ]
       }
 
