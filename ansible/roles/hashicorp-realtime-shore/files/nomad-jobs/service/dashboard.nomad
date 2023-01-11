@@ -220,7 +220,7 @@ TIMESCALEDB_TELEMETRY=off
 
         mount {
           type   = "volume"
-          target = "/var/lib/postgresql/data"
+          target = "/home/postgres/pgdata/data"
           source = "postgresql_data"
         }
       }
