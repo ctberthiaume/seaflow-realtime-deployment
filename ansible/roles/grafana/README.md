@@ -1,10 +1,10 @@
-seaflowpy
-=========
+grafana
+=======
 
-Pull the seaflowpy Docker image
+Pull the grafana Docker image
 
 Role Variables
 --------------
 
-* `seaflowpy_image`: Docker image.
-* `seaflowpy_version`: Version string, which will also be used a the image tag.
+* `grafana_image`: Docker image.
+* `grafana_version`: Version string, which will also be used a the image tag.
