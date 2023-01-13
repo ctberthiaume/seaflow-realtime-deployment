@@ -74,11 +74,6 @@ cruisemic \
         sidecar = true
       }
 
-      volume_mount {
-        volume      = "jobs_data"
-        destination = "/jobs_data"
-      }
-
       resources {
         memory = 500
         cpu    = 300
