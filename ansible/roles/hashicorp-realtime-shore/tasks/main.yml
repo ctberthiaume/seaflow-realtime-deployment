@@ -55,14 +55,6 @@
     owner: "{{ realtime_user }}"
     group: "{{ realtime_user }}"
 
-- name: Create caddy file server directory
-  become: yes
-  file:
-    path: /srv/public_files
-    state: directory
-    owner: "{{ realtime_user }}"
-    group: "{{ realtime_user }}"
-
 - name: Install nomad management scripts
   become: yes
   copy:

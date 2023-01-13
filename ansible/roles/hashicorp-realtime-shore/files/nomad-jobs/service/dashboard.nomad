@@ -116,7 +116,7 @@ EOHINNER
 # Set ownership for dashboard directory
 chown grafana /etc/dashboards
         EOH
-        destination = "local/run.sh"
+        destination = "${NOMAD_TASK_DIR}/run.sh"
         perms       = "755"
       }
 
@@ -134,7 +134,7 @@ chown grafana /etc/dashboards
 GF_SECURITY_ADMIN_PASSWORD="{{ key "grafana/GF_SECURITY_ADMIN_PASSWORD" }}"
 ROPASSWORD="{{ key "timescaledb/ROPASSWORD" }}"
         EOH
-        destination = "secrets/file.env"
+        destination = "${NOMAD_SECRETS_DIR}/file.env"
         env         = true
       }
 
@@ -205,7 +205,7 @@ ROUSER="{{ key "timescaledb/ROUSER" }}"
 POSTGRES_PASSWORD="{{key "timescaledb/POSTGRES_PASSWORD"}}"
 TIMESCALEDB_TELEMETRY=off
         EOH
-        destination = "secrets/file.env"
+        destination = "${NOMAD_SECRETS_DIR}/file.env"
         env         = true
       }
 

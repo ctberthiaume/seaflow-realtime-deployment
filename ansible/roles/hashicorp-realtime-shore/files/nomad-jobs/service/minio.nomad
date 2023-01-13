@@ -109,7 +109,7 @@ MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
 #MINIO_NOTIFY_WEBHOOK_ENDPOINT_PRIMARY="http://127.0.0.1:{{ env "NOMAD_PORT_webhook" }}/hooks/minio"
 #MINIO_NOTIFY_WEBHOOK_QUEUE_DIR=/var/lib/minio/events
         EOH
-        destination = "secrets/file.env"
+        destination = "${NOMAD_SECRETS_DIR}/file.env"
         env         = true
       }
 
@@ -137,7 +137,7 @@ MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
 
       driver = "exec"
       config {
-        command = "/local/setup.sh"
+        command = "${NOMAD_TASK_DIR}/setup.sh"
       }
 
       resources {
@@ -186,7 +186,7 @@ MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
 }
 
         EOH
-        destination = "local/researcher-policy.json"
+        destination = "${NOMAD_TASK_DIR}/researcher-policy.json"
       }
 
       template {
@@ -194,7 +194,7 @@ MINIO_ROOT_PASSWORD="{{key "minio/MINIO_ROOT_PASSWORD"}}"
 # Minio env vars
 MC_HOST_minio="http://{{key "minio/MINIO_ROOT_USER"}}:{{key "minio/MINIO_ROOT_PASSWORD"}}@127.0.0.1:{{ env "NOMAD_PORT_minio_api" }}"
         EOH
-        destination = "secrets/file.env"
+        destination = "${NOMAD_SECRETS_DIR}/file.env"
         env         = true
       }
 
@@ -256,7 +256,7 @@ for bucket in data dashboard user-data; do
 done
 
         EOH
-        destination = "/local/setup.sh"
+        destination = "${NOMAD_TASK_DIR}/setup.sh"
         perms       = "755"
       }
     }

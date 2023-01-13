@@ -52,7 +52,7 @@ job "caddy" {
         mount {
           type   = "volume"
           target = "/srv/public_files"
-          source = "cadd_file_server_data"
+          source = "caddy_file_server_data"
         }
       }
 

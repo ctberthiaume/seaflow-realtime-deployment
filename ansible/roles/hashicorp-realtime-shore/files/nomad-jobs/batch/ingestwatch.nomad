@@ -33,7 +33,7 @@ job "ingestwatch" {
       }
 
       config {
-        command = "/local/run.sh"
+        command = "${NOMAD_TASK_DIR}/run.sh"
       }
 
       resources {
@@ -55,7 +55,7 @@ location_constraint =
 server_side_encryption =
 
         EOH
-        destination = "/secrets/rclone.config"
+        destination = "${NOMAD_SECRETS_DIR}/rclone.config"
         change_mode = "restart"
         perms       = "644"
       }
@@ -72,7 +72,7 @@ if [[ -d /jobs_data/ingestwatch ]]; then
   echo "$(date): copying /jobs_data/ingestwatch/*.tsdata to minio/data" 1>&2
   find /jobs_data/ingestwatch \
     -type f -name "*.tsdata" \
-    -exec bash -c "echo $(date): copying {} to minio/data 1>&2; rclone --log-level INFO --config /secrets/rclone.config copy --checksum {} minio:data/" \;
+    -exec bash -c "echo $(date): copying {} to minio/data 1>&2; rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum {} minio:data/" \;
 else
   echo "$(date): /jobs_data/ingestwatch not present, skipping upload" 1>&2
 fi
@@ -81,15 +81,15 @@ fi
 geofile=/jobs_data/cruisemic/${cruise}/${cruise}-geo.tab
 if [[ -e "${geofile}" ]]; then
   echo "$(date): copying ${geofile} to minio/data/cruisemic/${cruise}/" 1>&2
-  rclone --log-level INFO --config /secrets/rclone.config copy --checksum ${geofile} minio:data/cruisemic/${cruise}/
+  rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum ${geofile} minio:data/cruisemic/${cruise}/
   echo "$(date): copying ${geofile} to minio/sync/cruisemic/${cruise}/" 1>&2
-  rclone --log-level INFO --config /secrets/rclone.config copy --checksum ${geofile} minio:sync/cruisemic/${cruise}/
+  rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum ${geofile} minio:sync/cruisemic/${cruise}/
 else
   echo "$(date): ${geofile} not present, skipping upload" 1>&2
 fi
 
         EOH
-        destination = "local/run.sh"
+        destination = "${NOMAD_TASK_DIR}/run.sh"
         perms       = "755"
       }
     }

@@ -1,5 +1,5 @@
 variable "realtime_user" {
-  type = string
+  type    = string
   default = "ubuntu"
 }
 
@@ -12,7 +12,7 @@ job "cruisemic" {
     count = 1
 
     volume "jobs_data" {
-      type = "host"
+      type   = "host"
       source = "jobs_data"
     }
 
@@ -26,12 +26,12 @@ job "cruisemic" {
       user = var.realtime_user
 
       volume_mount {
-        volume = "jobs_data"
+        volume      = "jobs_data"
         destination = "/jobs_data"
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env bash
 
 CRUISE="{{ key "cruise/name" }}"
@@ -49,42 +49,42 @@ cruisemic \
   -dir "/jobs_data/cruisemic/${CRUISE}" \
   -quiet -flush
         EOH
-        destination = "local/run.sh"
-        perms = "755"
+        destination = "${NOMAD_TASK_DIR}/run.sh"
+        perms       = "755"
         change_mode = "restart"
       }
 
       config {
-        command = "/local/run.sh"
+        command = "${NOMAD_TASK_DIR}/run.sh"
       }
     }
 
     task "export" {
-      driver = "exec"
+      driver = "raw_exec"
 
       user = var.realtime_user
 
       config {
-        command = "/local/run.sh"
+        command = "${NOMAD_TASK_DIR}/run.sh"
       }
 
       lifecycle {
-        hook = "poststart"
+        hook    = "poststart"
         sidecar = true
       }
 
       volume_mount {
-        volume = "jobs_data"
+        volume      = "jobs_data"
         destination = "/jobs_data"
       }
 
       resources {
         memory = 500
-        cpu = 300
+        cpu    = 300
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 [minio]
 type = s3
 provider = Minio
@@ -97,13 +97,13 @@ location_constraint =
 server_side_encryption =
 
         EOH
-        destination = "/secrets/rclone.config"
+        destination = "${NOMAD_SECRETS_DIR}/rclone.config"
         change_mode = "restart"
-        perms = "644"
+        perms       = "644"
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env bash
 
 set -e
@@ -115,24 +115,24 @@ while true; do
   echo "$(date): uploading cruisemic files to minio:data/cruisemic/${cruise}/" 1>&2
   for f in /jobs_data/cruisemic/"${cruise}"/*.tab; do
     [[ "$f" =~ .*-raw\.tab$ ]] && continue
-    echo $(date): rclone --log-level INFO --config /secrets/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/" 1>&2
-    rclone --log-level INFO --config /secrets/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/"
+    echo $(date): rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/" 1>&2
+    rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/"
   done
 
   # Copy for sync to shore
   echo "$(date): uploading cruisemic files to minio:sync/cruisemic/${cruise}/" 1>&2
   for f in /jobs_data/cruisemic/"${cruise}"/*.tab; do
     [[ "$f" =~ .*-raw\.tab$ ]] && continue
-    echo $(date): rclone --log-level INFO --config /secrets/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/" 1>&2
-    rclone --log-level INFO --config /secrets/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
+    echo $(date): rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/" 1>&2
+    rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
   done
 
   sleep 5m
 done
 
         EOH
-        destination = "local/run.sh"
-        perms = "755"
+        destination = "${NOMAD_TASK_DIR}/run.sh"
+        perms       = "755"
         change_mode = "restart"
       }
     }

@@ -50,9 +50,9 @@ job "caddy" {
         }
 
         mount {
-          type   = "bind"
+          type   = "volume"
           target = "/srv/public_files"
-          source = "/srv/public_files"
+          source = "caddy_file_server_data"
         }
       }
 

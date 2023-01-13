@@ -1,0 +1,19 @@
+---
+# tasks file for grafana
+
+- include_role:
+    name: docker
+
+- name: "Pull docker image"
+  community.docker.docker_image:
+    name: "{{ grafana_image_renderer_image }}:{{ grafana_image_renderer_version }}"
+    source: pull
+
+# Image can't be tagged as 'latest' for nomad local docker images so we'll use
+# 'local' instead
+- name: "Tag image as local"
+  community.docker.docker_image:
+    name: "{{ grafana_image_renderer_image }}:{{ grafana_image_renderer_version }}"
+    repository: "{{ grafana_image_renderer_image }}:local"
+    force_tag: yes
+    source: local
