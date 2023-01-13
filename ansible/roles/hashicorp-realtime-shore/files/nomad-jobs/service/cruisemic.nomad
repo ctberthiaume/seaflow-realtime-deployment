@@ -25,6 +25,11 @@ job "cruisemic" {
 
       user = var.realtime_user
 
+      volume_mount {
+        volume      = "jobs_data"
+        destination = "/jobs_data"
+      }
+
       template {
         data        = <<EOH
 #!/usr/bin/env bash
@@ -41,7 +46,6 @@ cruisemic \
   -name "${CRUISE}" \
   -udp -port "${PORT}" \
   -interval "${INTERVAL}" \
-  -raw \
   -dir "/jobs_data/cruisemic/${CRUISE}" \
   -quiet -flush
         EOH
@@ -67,6 +71,11 @@ cruisemic \
       lifecycle {
         hook    = "poststart"
         sidecar = true
+      }
+
+      volume_mount {
+        volume      = "jobs_data"
+        destination = "/jobs_data"
       }
 
       resources {
@@ -105,6 +114,7 @@ while true; do
   # Copy for dashboard
   echo "$(date): uploading cruisemic files to minio:data/cruisemic/${cruise}/" 1>&2
   for f in /jobs_data/cruisemic/"${cruise}"/*.tab; do
+    [[ ! -f "$f" ]] && continue
     [[ "$f" =~ .*-raw\.tab$ ]] && continue
     echo $(date): rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/" 1>&2
     rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum "$f" "minio:data/cruisemic/${cruise}/"
@@ -113,12 +123,13 @@ while true; do
   # Copy for sync to shore
   echo "$(date): uploading cruisemic files to minio:sync/cruisemic/${cruise}/" 1>&2
   for f in /jobs_data/cruisemic/"${cruise}"/*.tab; do
+    [[ ! -f "$f" ]] && continue
     [[ "$f" =~ .*-raw\.tab$ ]] && continue
     echo $(date): rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/" 1>&2
     rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
   done
 
-  sleep 3m
+  sleep 5m
 done
 
         EOH
