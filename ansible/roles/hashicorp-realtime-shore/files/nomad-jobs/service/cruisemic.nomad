@@ -46,6 +46,7 @@ cruisemic \
   -name "${CRUISE}" \
   -udp -port "${PORT}" \
   -interval "${INTERVAL}" \
+  -raw \
   -dir "/jobs_data/cruisemic/${CRUISE}" \
   -quiet -flush
         EOH
