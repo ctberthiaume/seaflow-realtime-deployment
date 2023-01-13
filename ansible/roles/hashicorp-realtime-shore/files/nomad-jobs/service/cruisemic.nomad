@@ -118,7 +118,7 @@ while true; do
     rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
   done
 
-  sleep 1m
+  sleep 3m
 done
 
         EOH
