@@ -25,11 +25,6 @@ job "cruisemic" {
 
       user = var.realtime_user
 
-      volume_mount {
-        volume      = "jobs_data"
-        destination = "/jobs_data"
-      }
-
       template {
         data        = <<EOH
 #!/usr/bin/env bash
@@ -46,6 +41,7 @@ cruisemic \
   -name "${CRUISE}" \
   -udp -port "${PORT}" \
   -interval "${INTERVAL}" \
+  -raw \
   -dir "/jobs_data/cruisemic/${CRUISE}" \
   -quiet -flush
         EOH
@@ -71,11 +67,6 @@ cruisemic \
       lifecycle {
         hook    = "poststart"
         sidecar = true
-      }
-
-      volume_mount {
-        volume      = "jobs_data"
-        destination = "/jobs_data"
       }
 
       resources {
@@ -127,7 +118,7 @@ while true; do
     rclone --log-level INFO --config ${NOMAD_SECRETS_DIR}/rclone.config copy --checksum "$f" "minio:sync/cruisemic/${cruise}/"
   done
 
-  sleep 5m
+  sleep 1m
 done
 
         EOH
