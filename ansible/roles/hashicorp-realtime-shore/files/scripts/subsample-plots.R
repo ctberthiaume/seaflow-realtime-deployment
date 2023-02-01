@@ -31,13 +31,13 @@ get_gating_params <- function(db, dt) {
 
 plot_opp <- function(opp, title_text) {
   par(mfrow = c(1, 3))
-  plot_cyt(opp, para.x="fsc_small", para.y="chl_small")
-  plot_cyt(opp, para.x="fsc_small", para.y="pe")
+  plot_cyt(opp, para.x = "fsc_small", para.y = "chl_small")
+  plot_cyt(opp, para.x = "fsc_small", para.y = "pe")
   title(title_text)
-  plot_cyt(opp, para.x="chl_small", para.y="pe")
+  plot_cyt(opp, para.x = "chl_small", para.y = "pe")
 }
 
-plot_vct <- function(evt, beads, opp, filter_params, gates_log) {
+plot_vct <- function(evt, beads, opp, filter_params, gates_log, inst) {
   # plot limits for transformed SeaFlow data
   lim2 <- c(1, 10^3.5)
 
@@ -48,54 +48,63 @@ plot_vct <- function(evt, beads, opp, filter_params, gates_log) {
   opp$file <- NULL
 
   # Plot gates
-  fscchl.g <- plot_cytogram(opp, para.x="fsc_small", para.y="chl_small", transform=T, bins=100,xlim=lim2, ylim=lim2) +
-    geom_path(data=as_tibble(gates_log[["prochloro"]]$poly), aes(fsc_small, chl_small), col="red3") +
-    geom_path(data=as_tibble(gates_log[["picoeuk"]]$poly), aes(fsc_small, chl_small), col="red3")
-  fscpe.g <- plot_cytogram(opp, para.x="fsc_small", para.y="pe", transform=T, bins=100,xlim=lim2, ylim=lim2) +
-    #geom_path(data=as_tibble(gates_log[["beads"]]$poly), aes(fsc_small, pe), col="red3") +  # I (Annette) gate beads on pe vs chl
-    geom_path(data=as_tibble(gates_log[["synecho"]]$poly), aes(fsc_small, pe), col="red3")
+  fscchl.g <- plot_cytogram(opp, para.x = "fsc_small", para.y = "chl_small", transform = T, bins = 100, xlim = lim2, ylim = lim2) +
+    geom_path(data = as_tibble(gates_log[["prochloro"]]$poly), aes(fsc_small, chl_small), col = "red3") +
+    geom_path(data = as_tibble(gates_log[["picoeuk"]]$poly), aes(fsc_small, chl_small), col = "red3")
+  fscpe.g <- plot_cytogram(opp, para.x = "fsc_small", para.y = "pe", transform = T, bins = 100, xlim = lim2, ylim = lim2) +
+    # geom_path(data=as_tibble(gates_log[["beads"]]$poly), aes(fsc_small, pe), col="red3") +  # I (Annette) gate beads on pe vs chl
+    geom_path(data = as_tibble(gates_log[["synecho"]]$poly), aes(fsc_small, pe), col = "red3")
   # Plot vct
-  fsc.v <- plot_histogram(opp, para.x="fsc_small", xlim=lim2)
-  chl.v <- plot_histogram(opp, para.x="chl_small", xlim=lim2)
-  pe.v <- plot_histogram(opp, para.x="pe", xlim=lim2)
-  fscchl.v <- plot_vct_cytogram(opp, para.x="fsc_small", para.y="chl_small", xlim=lim2, ylim=lim2)
-  fscpe.v <- plot_vct_cytogram(opp, para.x="fsc_small", para.y="pe", xlim=lim2, ylim=lim2)
+  fsc.v <- plot_histogram(opp, para.x = "fsc_small", xlim = lim2)
+  chl.v <- plot_histogram(opp, para.x = "chl_small", xlim = lim2)
+  pe.v <- plot_histogram(opp, para.x = "pe", xlim = lim2)
+  fscchl.v <- plot_vct_cytogram(opp, para.x = "fsc_small", para.y = "chl_small", xlim = lim2, ylim = lim2)
+  fscpe.v <- plot_vct_cytogram(opp, para.x = "fsc_small", para.y = "pe", xlim = lim2, ylim = lim2)
 
   # virtualcore sensitivity
   low <- evt %>% filter(D1 == 0 | D2 == 0) # particles with no D1 or D2 signal
   satur <- evt %>% filter(D1 == max(D1) | D2 == max(D2)) # particles with saturated D1 or D2 signal
   unknown <- opp %>% filter(pop == "unknown" & pop != "beads")
-  core <- tibble(nosignal = 100 * nrow(low)/nrow(evt),
-                 saturated = 100 * nrow(satur)/nrow(evt),
-                 background = 100 * nrow(unknown)/nrow(opp)) %>%
+  core <- tibble(
+    nosignal = 100 * nrow(low) / nrow(evt),
+    saturated = 100 * nrow(satur) / nrow(evt),
+    background = 100 * nrow(unknown) / nrow(opp)
+  ) %>%
     tidyr::pivot_longer(everything(), names_to = "sensitivity")
   # Plot vc
   sensi <- core %>% ggplot() +
-    geom_col(aes(sensitivity, value), alpha = 0.5, fill ='grey') +
+    geom_col(aes(sensitivity, value), alpha = 0.5, fill = "grey") +
     theme_bw() +
-    ylim(0, 100) + ylab("Total (%)")
+    ylim(0, 100) +
+    ylab("Total (%)")
 
   # Error in beads position
   ref <- filter_params %>% filter(quantile == 50)
   vc <- beads %>%
-    filter(D1 < ref$beads_D1 + 1.5 * 10^4 & D2 < ref$beads_D2 + 1.5 * 10^4 & pe > 5*10^4) %>%
-    summarize(D1 = 100* (median(D1)- ref$beads_D1)/ref$beads_D1,
-              D2 = 100* (median(D2) - ref$beads_D2)/ref$beads_D2,
-              fsc = 100* (median(fsc_small) - ref$beads_fsc_small )/ref$beads_fsc_small) %>%
+    filter(D1 < ref$beads_D1 + 1.5 * 10^4 & D2 < ref$beads_D2 + 1.5 * 10^4 & pe > 5 * 10^4) %>%
+    summarize(
+      D1 = 100 * (median(D1) - ref$beads_D1) / ref$beads_D1,
+      D2 = 100 * (median(D2) - ref$beads_D2) / ref$beads_D2,
+      fsc = 100 * (median(fsc_small) - ref$beads_fsc_small) / ref$beads_fsc_small
+    ) %>%
     tidyr::pivot_longer(everything(), names_to = "pmt", values_to = "drift")
 
   # Plot drift
   drift <- vc %>% ggplot() +
-    geom_col(aes(pmt, drift), alpha = 0.5, fill ='red3') +
+    geom_col(aes(pmt, drift), alpha = 0.5, fill = "red3") +
     geom_hline(yintercept = 0, lty = 2) +
-    theme_bw()+
-    ylim(-50, 50) + ylab("drift (%)")
+    theme_bw() +
+    ylim(-50, 50) +
+    ylab("drift (%)")
 
-  return(ggpubr::ggarrange(chl.v, fscchl.v, fscchl.g, fsc.v, fscpe.v, fscpe.g, pe.v, sensi, drift, nrow=3, ncol=3, common.legend=T))
+  p <- ggpubr::ggarrange(chl.v, fscchl.v, fscchl.g, fsc.v, fscpe.v, fscpe.g, pe.v, sensi, drift, nrow = 3, ncol = 3, common.legend = T)
+  title <- paste0(inst, " / ", min(evt$date), " - ", max(evt$date))
+  p <- ggpubr::annotate_figure(p, top = ggpubr::text_grob(title, face = "bold", size = 14))
+  return(p)
 }
 
 # optparse may not be installed globally so look for renv directory using optparse
-args = commandArgs(trailingOnly=TRUE)
+args <- commandArgs(trailingOnly = TRUE)
 renv_loc <- args == "--renv"
 if (any(renv_loc)) {
   renv_idx <- which(renv_loc)
@@ -105,26 +114,33 @@ if (any(renv_loc)) {
   }
 }
 
-parser <- optparse::OptionParser(usage="usage: plot-subsamples.R --repo-db-url URL --subsample-dir DIR --out-dir DIR")
+parser <- optparse::OptionParser(usage = "usage: plot-subsamples.R --repo-db-url URL --subsample-dir DIR --out-dir DIR")
 
-parser <- optparse::add_option(parser, c("--repo-db-url"), type="character", default="https://github.com/seaflow-uw/realtime-dbs",
-                               help="Realtime Popcycle database git repository URL.",
-                               metavar="URL")
-parser <- optparse::add_option(parser, c("--subsample"), type="character", default="",
-                               help="Subsample data directory. Required.",
-                               metavar="DIR")
-parser <- optparse::add_option(parser, c("--out"), type="character", default="",
-                               help="Output directory. Required.",
-                               metavar="DIR")
+parser <- optparse::add_option(parser, c("--repo-db-url"),
+  type = "character", default = "https://github.com/seaflow-uw/realtime-dbs",
+  help = "Realtime Popcycle database git repository URL.",
+  metavar = "URL"
+)
+parser <- optparse::add_option(parser, c("--subsample"),
+  type = "character", default = "",
+  help = "Subsample data directory. Required.",
+  metavar = "DIR"
+)
+parser <- optparse::add_option(parser, c("--out"),
+  type = "character", default = "",
+  help = "Output directory. Required.",
+  metavar = "DIR"
+)
 parser <- optparse::add_option(parser, "--renv",
-                               type = "character", default = "", metavar = "dir",
-                               help = "Optional renv directory to use. Requires the renv package.")
+  type = "character", default = "", metavar = "dir",
+  help = "Optional renv directory to use. Requires the renv package."
+)
 
 p <- optparse::parse_args2(parser, args = args)
 if (p$options$subsample == "" || p$options$out == "") {
   message("error: must specify all of --subsample, --out")
   optparse::print_help(parser)
-  quit(save="no", status=10)
+  quit(save = "no", status = 10)
 }
 
 library(popcycle)
@@ -136,7 +152,7 @@ repo_db_url <- p$options$repo_db_url
 
 if (!dir.exists(subsample_dir)) {
   message(paste0(subsample_dir, " does not exist"))
-  quit(save=FALSE, status=11)
+  quit(save = FALSE, status = 11)
 }
 
 if (!dir.exists(out_dir)) {
@@ -162,7 +178,7 @@ if (status == 127) {
 setwd(orig_dir)
 
 dbs <- list.files(file.path(repo_dir, "dbs"), pattern = ".*\\.db$", full.names = TRUE)
-message("found ", {length(dbs)}, " db files")
+message("found ", length(dbs), " db files")
 for (db in dbs) {
   message("looking for subsampled particle data for ", db)
   match <- stringr::str_match(basename(db), pattern = "(.+)_([^_]+)\\.db$")
@@ -185,10 +201,20 @@ for (db in dbs) {
   }
 
   # Get reference filter parameters
+  # reference_filter_params <- tryCatch(
+  #   read_reference_filter_params(inst),
+  #   error = function(e) {
+  #     message(e)
+  #     return(NULL)
+  #   }
+  # )
+  # Force 740 reference filter params
+  # TODO: should we have 130 reference filter params too?
   reference_filter_params <- tryCatch(
     read_reference_filter_params(inst),
     error = function(e) {
       message(e)
+      message()
       return(NULL)
     }
   )
@@ -196,6 +222,7 @@ for (db in dbs) {
     message("could not find reference filter parameters for ", inst)
     next
   }
+  message(paste0("using reference filter parameters for instrument ", inst))
 
   for (folder in sort(list.dirs(data_dir, full.names = T, recursive = F))) {
     message("")
@@ -244,7 +271,7 @@ for (db in dbs) {
       png(beads_filter_img_file, width = 1200, height = 900, res = 150)
       beads <- arrow::read_parquet(beads_file[1])
       try(plot_filter_cytogram(beads, filter_params))
-      mtext(paste0(inst,"/", date_str), 3, 2, cex=1)
+      mtext(paste0(inst, "/", date_str), 3, 2, cex = 1)
       dev.off()
     }
 
@@ -255,17 +282,17 @@ for (db in dbs) {
       png(evt_filter_img_file, width = 1200, height = 900, res = 150)
       evt <- arrow::read_parquet(evt_file[1])
       try(plot_filter_cytogram(evt, filter_params))
-      mtext(paste0(inst,"/", date_str), 3, 2, cex=1)
+      mtext(paste0(inst, "/", date_str), 3, 2, cex = 1)
       dev.off()
     }
 
     # OPP plots
     opp_img_file <- file.path(cruise_out_dir, glue::glue("{date_str}-opp_cytograms.png"))
     if (!file.exists(opp_img_file)) {
-      message(  "  saving ", opp_img_file)
+      message("  saving ", opp_img_file)
       png(opp_img_file, width = 1200, height = 400, res = 150)
       opp <- arrow::read_parquet(opp_file[1])
-      try(plot_opp(opp, paste0(inst,"/", date_str)))
+      try(plot_opp(opp, paste0(inst, "/", date_str)))
       dev.off()
     }
 
@@ -275,7 +302,7 @@ for (db in dbs) {
       message("  saving ", vct_img_file)
       png(vct_img_file, width = 1200, height = 1200, res = 150)
       opp <- arrow::read_parquet(opp_file[1]) %>% select(-c(file_id))
-      try(print(plot_vct(evt, beads, opp %>% filter(q50), reference_filter_params, gates_log)))
+      try(print(plot_vct(evt, beads, opp %>% filter(q50), reference_filter_params, gates_log, inst)))
       dev.off()
     }
   }
