@@ -37,7 +37,16 @@ plot_opp <- function(opp, title_text) {
   plot_cyt(opp, para.x = "chl_small", para.y = "pe")
 }
 
-plot_vct <- function(evt, beads, opp, filter_params, gates_log, inst) {
+plot_vct <- function(evt, beads, opp, ref_filter_params, gates_log, inst) {
+  # message("ref_filter_params in plot_vct")
+  # message(paste(capture.output(ref_filter_params), collapse = "\n"))
+  # message("gate_log in plot_vct")
+  # message(paste(capture.output(gates_log), collapse = "\n"))
+  # message("evt")
+  # message(paste(capture.output(evt), collapse = "\n"))
+  # message("opp")
+  # message(paste(capture.output(opp), collapse = "\n"))
+
   # plot limits for transformed SeaFlow data
   lim2 <- c(1, 10^3.5)
 
@@ -52,15 +61,18 @@ plot_vct <- function(evt, beads, opp, filter_params, gates_log, inst) {
     geom_path(data = as_tibble(gates_log[["prochloro"]]$poly), aes(fsc_small, chl_small), col = "red3") +
     geom_path(data = as_tibble(gates_log[["picoeuk"]]$poly), aes(fsc_small, chl_small), col = "red3")
   fscpe.g <- plot_cytogram(opp, para.x = "fsc_small", para.y = "pe", transform = T, bins = 100, xlim = lim2, ylim = lim2) +
-    # geom_path(data=as_tibble(gates_log[["beads"]]$poly), aes(fsc_small, pe), col="red3") +  # I (Annette) gate beads on pe vs chl
     geom_path(data = as_tibble(gates_log[["synecho"]]$poly), aes(fsc_small, pe), col = "red3")
+  chlpe.g <- plot_cytogram(opp, para.x = "chl_small", para.y = "pe", transform = T, bins = 100, xlim = lim2, ylim = lim2) +
+    geom_path(data = as_tibble(gates_log[["beads"]]$poly), aes(chl_small, pe), col = "red3") +
+    geom_path(data = as_tibble(gates_log[["croco"]]$poly), aes(chl_small, pe), col = "red3")
   # Plot vct
   fsc.v <- plot_histogram(opp, para.x = "fsc_small", xlim = lim2)
   chl.v <- plot_histogram(opp, para.x = "chl_small", xlim = lim2)
   pe.v <- plot_histogram(opp, para.x = "pe", xlim = lim2)
+  d1.v <- plot_histogram(opp, para.x = "D1", xlim = lim2)
   fscchl.v <- plot_vct_cytogram(opp, para.x = "fsc_small", para.y = "chl_small", xlim = lim2, ylim = lim2)
   fscpe.v <- plot_vct_cytogram(opp, para.x = "fsc_small", para.y = "pe", xlim = lim2, ylim = lim2)
-
+  chlpe.v <- plot_vct_cytogram(opp, para.x = "chl_small", para.y = "pe", xlim = lim2, ylim = lim2)
   # virtualcore sensitivity
   low <- evt %>% filter(D1 == 0 | D2 == 0) # particles with no D1 or D2 signal
   satur <- evt %>% filter(D1 == max(D1) | D2 == max(D2)) # particles with saturated D1 or D2 signal
@@ -79,7 +91,7 @@ plot_vct <- function(evt, beads, opp, filter_params, gates_log, inst) {
     ylab("Total (%)")
 
   # Error in beads position
-  ref <- filter_params %>% filter(quantile == 50)
+  ref <- ref_filter_params
   vc <- beads %>%
     filter(D1 < ref$beads_D1 + 1.5 * 10^4 & D2 < ref$beads_D2 + 1.5 * 10^4 & pe > 5 * 10^4) %>%
     summarize(
@@ -97,7 +109,7 @@ plot_vct <- function(evt, beads, opp, filter_params, gates_log, inst) {
     ylim(-50, 50) +
     ylab("drift (%)")
 
-  p <- ggpubr::ggarrange(chl.v, fscchl.v, fscchl.g, fsc.v, fscpe.v, fscpe.g, pe.v, sensi, drift, nrow = 3, ncol = 3, common.legend = T)
+  p <- ggpubr::ggarrange(chl.v, fscchl.v, fscchl.g, fsc.v, fscpe.v, fscpe.g, pe.v, chlpe.v, chlpe.g, d1.v, sensi, drift, nrow = 4, ncol = 3, common.legend = T)
   title <- paste0(inst, " / ", min(evt$date), " - ", max(evt$date))
   p <- ggpubr::annotate_figure(p, top = ggpubr::text_grob(title, face = "bold", size = 14))
   return(p)
@@ -201,15 +213,6 @@ for (db in dbs) {
   }
 
   # Get reference filter parameters
-  # reference_filter_params <- tryCatch(
-  #   read_reference_filter_params(inst),
-  #   error = function(e) {
-  #     message(e)
-  #     return(NULL)
-  #   }
-  # )
-  # Force 740 reference filter params
-  # TODO: should we have 130 reference filter params too?
   reference_filter_params <- tryCatch(
     read_reference_filter_params(inst),
     error = function(e) {
@@ -222,7 +225,9 @@ for (db in dbs) {
     message("could not find reference filter parameters for ", inst)
     next
   }
+  reference_filter_params <- reference_filter_params %>% filter(quantile == 2.5)
   message(paste0("using reference filter parameters for instrument ", inst))
+  message(paste(capture.output(reference_filter_params), collapse = "\n"))
 
   for (folder in sort(list.dirs(data_dir, full.names = T, recursive = F))) {
     message("")
@@ -254,15 +259,21 @@ for (db in dbs) {
 
     # Get filter and gating params for this date range
     filter_params <- get_filter_params(db, earliest_date)
+    filter_params <- filter_params
     if (is.null(filter_params)) {
       message("  could not find filter params for timestamp", date_str)
       next
     }
+    message("found filter params")
+    message(paste(capture.output(filter_params), collapse = "\n"))
+
     gates_log <- get_gating_params(db, earliest_date)
     if (is.null(gates_log)) {
       message("  could not find gating params for timestamp", date_str)
       next
     }
+    message("found gating params")
+    message(paste(capture.output(gates_log), collapse = "\n"))
 
     # Beads filter plots
     beads_filter_img_file <- file.path(cruise_out_dir, glue::glue("{date_str}-beads_filter_cytograms.png"))
@@ -292,6 +303,7 @@ for (db in dbs) {
       message("  saving ", opp_img_file)
       png(opp_img_file, width = 1200, height = 400, res = 150)
       opp <- arrow::read_parquet(opp_file[1])
+      opp <- opp %>% filter(q2.5)
       try(plot_opp(opp, paste0(inst, "/", date_str)))
       dev.off()
     }
@@ -300,9 +312,9 @@ for (db in dbs) {
     vct_img_file <- file.path(cruise_out_dir, glue::glue("{date_str}-vct_cytograms.png"))
     if (!file.exists(vct_img_file)) {
       message("  saving ", vct_img_file)
-      png(vct_img_file, width = 1200, height = 1200, res = 150)
+      png(vct_img_file, width = 1200, height = 1600, res = 150)
       opp <- arrow::read_parquet(opp_file[1]) %>% select(-c(file_id))
-      try(print(plot_vct(evt, beads, opp %>% filter(q50), reference_filter_params, gates_log, inst)))
+      try(print(plot_vct(evt, beads, opp, reference_filter_params, gates_log, inst)))
       dev.off()
     }
   }

@@ -7,7 +7,7 @@ RUN go mod init timescaledb-parallel-copy-build \
 
 WORKDIR /tsdata-build
 RUN go mod init tsdata-build \
-    && go get -d github.com/ctberthiaume/tsdata/cmd/tsdata@v0.3.0 \
+    && go get -d github.com/ctberthiaume/tsdata/cmd/tsdata@v0.3.1 \
     && go build -o tsdata github.com/ctberthiaume/tsdata/cmd/tsdata
 
 FROM python:3.8-buster

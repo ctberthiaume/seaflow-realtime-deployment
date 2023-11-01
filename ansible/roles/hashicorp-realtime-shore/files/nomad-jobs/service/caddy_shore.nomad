@@ -11,14 +11,6 @@ job "caddy" {
         static       = 2019
         host_network = "localhost"
       }
-      port "http" {
-        static       = 80
-        host_network = "public"
-      }
-      port "https" {
-        static       = 443
-        host_network = "public"
-      }
     }
 
     service {
@@ -32,6 +24,11 @@ job "caddy" {
         interval = "10s"
         timeout  = "2s"
       }
+    }
+
+    volume "jobs_data" {
+      type   = "host"
+      source = "jobs_data"
     }
 
     task "caddy" {
@@ -56,6 +53,11 @@ job "caddy" {
         }
       }
 
+      volume_mount {
+        volume      = "jobs_data"
+        destination = "/jobs_data"
+      }
+
       resources {
         memory = 50
         cpu    = 300
@@ -69,6 +71,8 @@ job "caddy" {
 # for automatic HTTPS public site use the bare domain name like "example.com"
 "{{ key "caddy/grafana-site-address" }}" {
   redir /datafiles /datafiles/
+  redir /realtime-sync /realtime-sync/
+  redir /diagnostic-plots /diagnostic-plots/
 
   handle /datafiles/* {
     basicauth {
@@ -76,6 +80,28 @@ job "caddy" {
     }
     root * /srv/public_files
     uri strip_prefix /datafiles
+    file_server {
+      browse
+    }
+  }
+
+  handle /realtime-sync/* {
+    basicauth {
+      {{ key "caddy/files-user" }} {{ key "caddy/files-password-hash" }} {{ key "caddy/files-password-salt" }}
+    }
+    root * /jobs_data/realtime-sync
+    uri strip_prefix /realtime-sync
+    file_server {
+      browse
+    }
+  }
+
+  handle /diagnostic-plots/* {
+    basicauth {
+      {{ key "caddy/files-user" }} {{ key "caddy/files-password-hash" }} {{ key "caddy/files-password-salt" }}
+    }
+    root * /jobs_data/subsample-processing
+    uri strip_prefix /diagnostic-plots
     file_server {
       browse
     }

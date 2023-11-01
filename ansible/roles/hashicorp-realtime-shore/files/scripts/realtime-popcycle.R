@@ -14,7 +14,14 @@ if (any(renv_loc)) {
 
 library(tidyverse)
 
-parser <- optparse::OptionParser(usage = "usage: realtime-popcycle.R --db FILE --vct-dir FILE --opp-dir DIR [options]")
+#' Create a temporary file name
+mktempname <- function(root_dir, suffix) {
+  rand8char <- stringr::str_sub(uuid::UUIDgenerate(), 1, 8)
+  timestamp <- lubridate::format_ISO8601(lubridate::now())
+  return(file.path(root_dir, paste0("._", rand8char, "_", timestamp, "_", suffix)))
+}
+
+parser <- optparse::OptionParser(usage = "usage: realtime-popcycle.R [options]")
 # Have a separate instrument option here because in some cases the serial and
 # instrument name may differ. The serial will be used in the database to look up
 # values in the Mie theory table. If a new instrument (v2) has no entries in this
@@ -139,11 +146,25 @@ message("--------------")
 ### ANALYZE NEW FILE(s) ###
 ############################
 dated_msg("Starting filtering")
-popcycle::filter_evt_files(db, evt_dir, NULL, opp_dir, cores = cores)
+tmp_filter_db_file <- mktempname(dirname(db), basename(db))
+dated_msg(paste0("Using temp db for filtering = ", tmp_filter_db_file))
+file.copy(db, tmp_filter_db_file)
+popcycle::filter_evt_files(tmp_filter_db_file, evt_dir, NULL, opp_dir, cores = cores)
 dated_msg("Completed filtering")
+Sys.sleep(2)
+dated_msg(paste0("Moving temp db file ", tmp_filter_db_file, " to ", db))
+file.rename(tmp_filter_db_file, db)
+
 dated_msg("Starting gating")
-popcycle::classify_opp_files(db, opp_dir, NULL, vct_dir, cores = cores)
+tmp_gating_db_file <- mktempname(dirname(db), basename(db))
+dated_msg(paste0("Using temp db for gating = ", tmp_gating_db_file))
+file.copy(db, tmp_gating_db_file)
+popcycle::classify_opp_files(tmp_gating_db_file, opp_dir, NULL, vct_dir, cores = cores)
 dated_msg("Completed gating")
+Sys.sleep(2)
+dated_msg(paste0("Moving temp db file ", tmp_gating_db_file, " to ", db))
+file.rename(tmp_gating_db_file, db)
+
 
 ##########################
 ### Save Stats and SFL ###
@@ -169,10 +190,13 @@ if (sfl_file != "") {
   dated_msg("saving SFL / metadata file")
   filetype <- paste0("SeaFlowSFL_", inst)
   description <- paste0("SeaFlow SFL data for instrument ", inst)
+  tmp_sfl_file <- mktempname(dirname(sfl_file), basename(sfl_file))
+  message(paste0("temp file for sfl = ", tmp_sfl_file))
   popcycle::write_realtime_meta_tsdata(
-    meta, sfl_file,
+    meta, tmp_sfl_file,
     project = cruise, filetype = filetype, description = description
   )
+  file.rename(tmp_sfl_file, sfl_file)
   dated_msg("saved SFL / metadata file")
 }
 
@@ -180,10 +204,13 @@ if (stats_abund_file != "") {
   dated_msg("saving stats / bio file with abundance")
   filetype <- paste0("SeaFlowPopAbundance_", inst)
   description <- paste0("SeaFlow population data for instrument ", inst)
+  tmp_stats_abund_file <- mktempname(dirname(stats_abund_file), basename(stats_abund_file))
+  message(paste0("temp file for stats-abund = ", tmp_stats_abund_file))
   popcycle::write_realtime_bio_tsdata(
-    pop, stats_abund_file,
+    pop, tmp_stats_abund_file,
     project = cruise, filetype = filetype, description = description
   )
+  file.rename(tmp_stats_abund_file, stats_abund_file)
   dated_msg("saved stats / bio file with abundance")
 }
 
@@ -191,11 +218,18 @@ if (stats_no_abund_file != "") {
   dated_msg("saving stats / bio file without abundance")
   filetype <- paste0("SeaFlowPop_", inst)
   description <- paste0("SeaFlow population data without abundance for instrument ", inst)
+  tmp_stats_no_abund_file <- mktempname(dirname(stats_no_abund_file), basename(stats_no_abund_file))
+  message(paste0("temp file for stats-no-abund = ", tmp_stats_no_abund_file))
   popcycle::write_realtime_bio_tsdata(
-    pop %>% dplyr::select(-c(abundance)), stats_no_abund_file,
+    pop %>% dplyr::select(-c(abundance)), tmp_stats_no_abund_file,
     project = cruise, filetype = filetype, description = description
   )
+  file.rename(tmp_stats_no_abund_file, stats_no_abund_file)
   dated_msg("saved stats / bio file without abundance")
 }
+
+backup_db_file <- mktempname(dirname(db), "backup.db")
+dated_msg(paste0("Creating a backup db file = ", backup_db_file))
+file.copy(db, backup_db_file)
 
 dated_msg("Done")

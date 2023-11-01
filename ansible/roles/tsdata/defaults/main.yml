@@ -1,9 +1,8 @@
 ---
-
 tsdata_name: tsdata
-tsdata_checksum: sha256:e54f7178d58458419ae6bf585afd6058fd0a513d9c8a5a2d7cd5e9044e409882
-tsdata_version: v0.3.0-0-g32df37f
-tsdata_version_success_string: v0.3.0
+tsdata_checksum: sha256:dc20b9eac0be2d976bd3be2db1d52b688a01a1e52ddeac948d034bbeb1f756c1
+tsdata_version: v0.3.1-0-ge69f0c2
+tsdata_version_success_string: v0.3.1
 tsdata_version_cmd: "{{ tsdata_name }} --version"
 tsdata_url: "https://github.com/ctberthiaume/tsdata/releases/download/{{ tsdata_version_success_string }}/tsdata.{{ tsdata_version }}.linux-amd64.zip"
 tsdata_downloaded_file: "tsdata.{{ tsdata_version }}.linux-amd64.zip"

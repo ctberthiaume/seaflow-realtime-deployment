@@ -11,14 +11,6 @@ job "caddy" {
         static       = 2019
         host_network = "localhost"
       }
-      port "http" {
-        static       = 80
-        host_network = "public"
-      }
-      port "https" {
-        static       = 443
-        host_network = "public"
-      }
     }
 
     service {
@@ -32,6 +24,11 @@ job "caddy" {
         interval = "10s"
         timeout  = "2s"
       }
+    }
+
+    volume "jobs_data" {
+      type   = "host"
+      source = "jobs_data"
     }
 
     task "caddy" {
@@ -56,6 +53,11 @@ job "caddy" {
         }
       }
 
+      volume_mount {
+        volume      = "jobs_data"
+        destination = "/jobs_data"
+      }
+
       resources {
         memory = 50
         cpu    = 300
@@ -69,10 +71,19 @@ job "caddy" {
 # for automatic HTTPS public site use the bare domain name like "example.com"
 {{ key "caddy/grafana-site-address" }} {
   redir /datafiles /datafiles/
+  redir /realtime-data /realtime-data/
 
   handle /datafiles/* {
     root * /srv/public_files
     uri strip_prefix /datafiles
+    file_server {
+      browse
+    }
+  }
+
+  handle /realtime-data/* {
+    root * /jobs_data/
+    uri strip_prefix /realtime-data
     file_server {
       browse
     }

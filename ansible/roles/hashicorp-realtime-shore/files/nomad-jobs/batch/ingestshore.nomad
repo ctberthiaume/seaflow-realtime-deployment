@@ -1,5 +1,5 @@
 variable "realtime_user" {
-  type = string
+  type    = string
   default = "ubuntu"
 }
 
@@ -9,14 +9,14 @@ job "ingestshore" {
   type = "batch"
 
   periodic {
-    cron = "02,07,12,17,22,27,32,37,42,47,52,57 * * * *"  // every 5 minutes with 2 minute offset
+    cron             = "02,07,12,17,22,27,32,37,42,47,52,57 * * * *" // every 5 minutes with 2 minute offset
     prohibit_overlap = true
-    time_zone = "UTC"
+    time_zone        = "UTC"
   }
 
   # No restart attempts
   reschedule {
-    attempts = 1
+    attempts  = 1
     unlimited = false
   }
 
@@ -24,7 +24,7 @@ job "ingestshore" {
     count = 1
 
     volume "jobs_data" {
-      type = "host"
+      type   = "host"
       source = "jobs_data"
     }
 
@@ -32,22 +32,22 @@ job "ingestshore" {
       driver = "docker"
 
       volume_mount {
-        volume = "jobs_data"
+        volume      = "jobs_data"
         destination = "/jobs_data"
       }
 
       config {
-        image = "ctberthiaume/popcycle:local"
+        image   = "ctberthiaume/popcycle:local"
         command = "/local/run.sh"
       }
 
       resources {
         memory = 500
-        cpu = 300
+        cpu    = 300
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env Rscript
 library(dplyr, warn.conflicts=FALSE)
 
@@ -94,11 +94,11 @@ readr::write_delim(pop, stdout(), delim="\t", col_names=TRUE, append=TRUE)
         EOH
         destination = "/local/fixrealtime.R"
         change_mode = "restart"
-        perms = "755"
+        perms       = "755"
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env bash
 
 set -e
@@ -133,7 +133,7 @@ done < <(find /alloc/data/cache/ -type f -name 'sfl.popcycle.*.tsdata')
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
-        perms = "755"
+        perms       = "755"
       }
     }
 
@@ -141,30 +141,30 @@ done < <(find /alloc/data/cache/ -type f -name 'sfl.popcycle.*.tsdata')
       driver = "docker"
 
       volume_mount {
-        volume = "jobs_data"
+        volume      = "jobs_data"
         destination = "/jobs_data"
       }
 
       config {
-        image = "ingest:local"
-        command = "/local/run.sh"
+        image        = "ingest:local"
+        command      = "/local/run.sh"
         network_mode = "host"
       }
 
       user = 472
 
       lifecycle {
-        hook = "poststop"
+        hook    = "poststop"
         sidecar = false
       }
 
       resources {
         memory = 100
-        cpu = 300
+        cpu    = 300
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 [minio]
 type = s3
 provider = Minio
@@ -179,11 +179,11 @@ server_side_encryption =
         EOH
         destination = "/secrets/rclone.config"
         change_mode = "restart"
-        perms = "644"
+        perms       = "644"
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env bash
 
 shopt -s nullglob
@@ -203,6 +203,9 @@ while IFS= read -r f; do
   echo "grep results = $answer" 1>&2
   if [[ -n "$answer" ]]; then
     echo "$(date): copying geo data to to minio:data/$(dirname ${f})/" 1>&2
+    # TODO: minio doesn't like a directory form of "minio:data/./", i.e. can't
+    # import file at the root of realtime-sync, they must be in a subdirectory.
+    # Fix this hidden constraint.
     rclone --log-level INFO --config /secrets/rclone.config copy --checksum "${f}" "minio:data/$(dirname ${f})/" || exit $?
     sleep 1
   fi
@@ -213,7 +216,7 @@ rclone --log-level INFO --config /secrets/rclone.config copy --checksum /alloc/d
 
         EOH
         destination = "local/run.sh"
-        perms = "755"
+        perms       = "755"
         change_mode = "restart"
       }
     }

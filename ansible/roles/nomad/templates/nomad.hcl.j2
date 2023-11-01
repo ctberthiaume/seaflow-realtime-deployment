@@ -24,10 +24,6 @@ client {
   host_network "localhost" {
     cidr = "127.0.0.1/32"
   }
-
-  host_network "public" {
-    cidr = "{{ lookup('vars', 'ansible_' + public_interface).ipv4.address }}/32"
-  }
 }
 
 plugin "raw_exec" {

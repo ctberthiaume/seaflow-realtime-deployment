@@ -1,3 +1,3 @@
 ---
-consul_version: 1.14.3
+consul_version: 1.16.2
 consul_apt_version: "{{ consul_version }}-1"

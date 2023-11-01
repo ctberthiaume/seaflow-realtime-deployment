@@ -1,5 +1,5 @@
 variable "realtime_user" {
-  type = string
+  type    = string
   default = "ubuntu"
 }
 
@@ -9,9 +9,9 @@ job "subsample" {
   type = "batch"
 
   periodic {
-    cron = "10 */1 * * *"  // every 1 hours at 10 past the hour
+    cron             = "10 */1 * * *" // every 1 hours at 10 past the hour
     prohibit_overlap = true
-    time_zone = "UTC"
+    time_zone        = "UTC"
   }
 
   parameterized {
@@ -27,7 +27,7 @@ job "subsample" {
     }
 
     volume "jobs_data" {
-      type = "host"
+      type   = "host"
       source = "jobs_data"
     }
 
@@ -41,17 +41,17 @@ job "subsample" {
       }
 
       lifecycle {
-        hook = "prestart"
+        hook    = "prestart"
         sidecar = false
       }
 
       resources {
         memory = 50
-        cpu = 300
+        cpu    = 300
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env bash
 
 # Get job info
@@ -72,7 +72,7 @@ consul kv get -recurse "subsample/${NOMAD_META_instrument}/" | \
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
-        perms = "755"
+        perms       = "755"
       }
     }
 
@@ -80,22 +80,22 @@ consul kv get -recurse "subsample/${NOMAD_META_instrument}/" | \
       driver = "docker"
 
       config {
-        image = "ctberthiaume/seaflowpy:local"
+        image   = "ctberthiaume/seaflowpy:local"
         command = "/local/run.sh"
       }
 
       volume_mount {
-        volume = "jobs_data"
+        volume      = "jobs_data"
         destination = "/jobs_data"
       }
 
       resources {
         memory = 2000
-        cpu = 300
+        cpu    = 300
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env bash
 
 set -e
@@ -138,7 +138,7 @@ if [[ ! -e "${outdir}/last-${sample_tail_hours}-hours.fullSample.parquet" ]]; th
   timeout -k 60s 600s seaflowpy evt sample \
     --min-date "${mindate}" \
     --max-date "${maxdate}" \
-    --count "${sample_noise_count}" \
+    --count "${sample_full_count}" \
     --file-fraction 1.0 \
     --verbose \
     --outpath "${outdir}/last-${sample_tail_hours}-hours.fullSample.parquet" \
@@ -163,6 +163,7 @@ if [[ ! -e "${outdir}/last-${sample_tail_hours}-hours.beadSample.parquet" ]]; th
     --max-date "${maxdate}" \
     --count 1500 \
     --noise-filter \
+    --saturation-filter \
     --min-fsc "${bead_sample_min_fsc}" \
     --min-pe "${bead_sample_min_pe}" \
     --min-chl "${bead_sample_min_chl}"  \
@@ -205,7 +206,7 @@ fi
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
-        perms = "755"
+        perms       = "755"
       }
     }
 
@@ -219,22 +220,22 @@ fi
       }
 
       lifecycle {
-        hook = "poststop"
+        hook    = "poststop"
         sidecar = false
       }
 
       volume_mount {
-        volume = "jobs_data"
+        volume      = "jobs_data"
         destination = "/jobs_data"
       }
 
       resources {
         memory = 100
-        cpu = 300
+        cpu    = 300
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 [minio]
 type = s3
 provider = Minio
@@ -249,11 +250,11 @@ server_side_encryption =
         EOH
         destination = "/secrets/rclone.config"
         change_mode = "restart"
-        perms = "644"
+        perms       = "644"
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env bash
 
 set -e
@@ -269,7 +270,7 @@ rclone --log-level INFO --config /secrets/rclone.config copy \
 
         EOH
         destination = "local/run.sh"
-        perms = "755"
+        perms       = "755"
         change_mode = "restart"
       }
     }

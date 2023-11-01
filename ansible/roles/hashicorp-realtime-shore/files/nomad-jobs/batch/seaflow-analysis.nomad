@@ -1,5 +1,5 @@
 variable "realtime_user" {
-  type = string
+  type    = string
   default = "ubuntu"
 }
 
@@ -9,9 +9,9 @@ job "seaflow-analysis" {
   type = "batch"
 
   periodic {
-    cron = "*/10 * * * *"
+    cron             = "*/10 * * * *"
     prohibit_overlap = true
-    time_zone = "UTC"
+    time_zone        = "UTC"
   }
 
   parameterized {
@@ -27,7 +27,7 @@ job "seaflow-analysis" {
     }
 
     volume "jobs_data" {
-      type = "host"
+      type   = "host"
       source = "jobs_data"
     }
 
@@ -41,17 +41,17 @@ job "seaflow-analysis" {
       }
 
       lifecycle {
-        hook = "prestart"
+        hook    = "prestart"
         sidecar = false
       }
 
       resources {
         memory = 50
-        cpu = 300
+        cpu    = 300
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env bash
 
 # Can't use normal nomad template with consul key here because we need to
@@ -76,7 +76,7 @@ echo "repodburl=$(consul kv get seaflow-analysis/${NOMAD_META_instrument}/db-rep
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
-        perms = "755"
+        perms       = "755"
       }
     }
 
@@ -84,11 +84,11 @@ echo "repodburl=$(consul kv get seaflow-analysis/${NOMAD_META_instrument}/db-rep
       driver = "docker"
 
       config {
-        image = "ctberthiaume/seaflowpy:local"
+        image   = "ctberthiaume/seaflowpy:local"
         command = "/local/run.sh"
 
         mount {
-          type = "bind"
+          type   = "bind"
           target = "/jobs_data"
           source = "/jobs_data"
           volume_options {
@@ -99,11 +99,11 @@ echo "repodburl=$(consul kv get seaflow-analysis/${NOMAD_META_instrument}/db-rep
 
       resources {
         memory = 200
-        cpu = 300
+        cpu    = 300
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env bash
 # Perform SeaFlow setup
 
@@ -137,6 +137,7 @@ if [[ ! -d "${outdir}" ]]; then
 fi
 
 # Clone and pull the db repo
+git config --global --add safe.directory "${repodir}"
 if [[ ! -d "${repodir}" ]]; then
   git clone "${repodburl}" "${repodir}"
 fi
@@ -151,31 +152,42 @@ fi
 # Create an new empty database if one doesn't exist
 if [ ! -e "$dbfile" ]; then
   echo "Creating $dbfile with cruise=$cruise and inst=$serial"
-  seaflowpy db create -c "$cruise" -s "$serial" -d "$dbfile" || exit $?
+  seaflowpy db create "$cruise" "$serial" "$dbfile" || exit $?
 fi
 
+# TODO: If this gets interrupted, db could be in an inconsistent state, and the
+# next time it's run this section may error if a table has been dropped but
+# had not been restored.
 echo "Overwriting filter, gating, poly tables in ${dbfile} with data from git repo"
-sqlite3 "${dbfile}" 'drop table filter' || exit $?
-sqlite3 "${repodbfile}" ".dump filter" | sqlite3 "${dbfile}" || exit $?
-sqlite3 "${dbfile}" 'drop table gating' || exit $?
-sqlite3 "${repodbfile}" ".dump gating" | sqlite3 "${dbfile}" || exit $?
-sqlite3 "${dbfile}" 'drop table poly' || exit $?
-sqlite3 "${repodbfile}" ".dump poly" | sqlite3 "${dbfile}" || exit $?
-sqlite3 "${dbfile}" 'drop table gating_plan' || exit $?
-sqlite3 "${repodbfile}" ".dump gating_plan" | sqlite3 "${dbfile}" || exit $?
-sqlite3 "${dbfile}" 'drop table filter_plan' || exit $?
-sqlite3 "${repodbfile}" ".dump filter_plan" | sqlite3 "${dbfile}" || exit $?
+tmpdbfile=$(mktemp --tmpdir=${NOMAD_TASK_DIR})
+echo "Writing to temp file ${tmpdbfile}"
+cp "${dbfile}" "${tmpdbfile}"
+sqlite3 "${tmpdbfile}" 'DROP TABLE IF EXISTS filter' || exit $?
+sqlite3 "${repodbfile}" ".dump filter" | sqlite3 "${tmpdbfile}" || exit $?
+sqlite3 "${tmpdbfile}" 'DROP TABLE IF EXISTS gating' || exit $?
+sqlite3 "${repodbfile}" ".dump gating" | sqlite3 "${tmpdbfile}" || exit $?
+sqlite3 "${tmpdbfile}" 'DROP TABLE IF EXISTS poly' || exit $?
+sqlite3 "${repodbfile}" ".dump poly" | sqlite3 "${tmpdbfile}" || exit $?
+sqlite3 "${tmpdbfile}" 'DROP TABLE IF EXISTS gating_plan' || exit $?
+sqlite3 "${repodbfile}" ".dump gating_plan" | sqlite3 "${tmpdbfile}" || exit $?
+sqlite3 "${tmpdbfile}" 'DROP TABLE IF EXISTS filter_plan' || exit $?
+sqlite3 "${repodbfile}" ".dump filter_plan" | sqlite3 "${tmpdbfile}" || exit $?
 
 # Find and import all SFL files in rawdatadir
-echo "Importing SFL data in $rawdatadir"
+echo "Importing SFL data in ${rawdatadir}"
 echo "Saving cleaned and concatenated SFL file at ${outdir}/${cruise}.sfl"
 # Just going to assume there are no newlines in filenames here (there shouldn't be!)
-seaflowpy sfl print $(/usr/bin/find "$rawdatadir" -name '*.sfl' | sort) > "${outdir}/${cruise}.concatenated.sfl" || exit $?
-seaflowpy db import-sfl -f "${outdir}/${cruise}.concatenated.sfl" "$dbfile" || exit $?
+seaflowpy sfl print $(/usr/bin/find "${rawdatadir}" -name '*.sfl' | sort) > "${outdir}/${cruise}.concatenated.sfl" || exit $?
+seaflowpy db import-sfl -f "${outdir}/${cruise}.concatenated.sfl" "${tmpdbfile}" || exit $?
+
+echo "Moving ${tmpdbfile} to ${dbfile}"
+mv "${tmpdbfile}" "${dbfile}"
+echo "DB prep complete"
+
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
-        perms = "755"
+        perms       = "755"
       }
     }
 
@@ -183,11 +195,11 @@ seaflowpy db import-sfl -f "${outdir}/${cruise}.concatenated.sfl" "$dbfile" || e
       driver = "docker"
 
       config {
-        image = "ctberthiaume/popcycle:local"
+        image   = "ctberthiaume/popcycle:local"
         command = "/local/run.sh"
-        
+
         mount {
-          type = "bind"
+          type   = "bind"
           target = "/jobs_data"
           source = "/jobs_data"
           volume_options {
@@ -196,9 +208,9 @@ seaflowpy db import-sfl -f "${outdir}/${cruise}.concatenated.sfl" "$dbfile" || e
         }
 
         mount {
-          type = "bind"
-          target = "/scripts"
-          source = "/etc/realtime/scripts"
+          type     = "bind"
+          target   = "/scripts"
+          source   = "/etc/realtime/scripts"
           readonly = true
           volume_options {
             no_copy = true
@@ -207,17 +219,17 @@ seaflowpy db import-sfl -f "${outdir}/${cruise}.concatenated.sfl" "$dbfile" || e
       }
 
       lifecycle {
-        hook = "poststop"
+        hook    = "poststop"
         sidecar = false
       }
 
       resources {
         memory = 10000
-        cpu = 300
+        cpu    = 300
       }
 
       template {
-        data = <<EOH
+        data        = <<EOH
 #!/usr/bin/env bash
 # Perform SeaFlow classification
 
@@ -285,7 +297,7 @@ echo "$(date -u): Completed sync copy" >&2
         EOH
         destination = "/local/run.sh"
         change_mode = "restart"
-        perms = "755"
+        perms       = "755"
       }
     }
   }
