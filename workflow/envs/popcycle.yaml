@@ -1,0 +1,21 @@
+name: popcycle
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - r-base=4.5
+  - r-devtools
+  - r-biocmanager
+  - r-arrow
+  - r-data.table
+  - r-doParallel
+  - r-matrixStats
+  - r-optparse
+  - r-RSQLite
+  - r-splancs
+  - r-uuid
+  - r-maps
+  - r-mapdata
+  - r-viridis
+  - r-tidyverse
+  - r-testthat

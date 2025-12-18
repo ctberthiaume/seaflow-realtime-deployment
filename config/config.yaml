@@ -1,0 +1,15 @@
+seaflow_analysis_threads: 6
+subsample_threads: 6
+correction: 1
+volume_constant: ""
+max_event_rate: 40000
+tail_hours: 1
+sample_noise_count: 100000
+sample_full_count: 100000
+bead_sample_min_fsc: 30000
+bead_sample_min_pe: 30000
+bead_sample_min_chl: 25000
+opp_sample_count: 100000
+
+# timeout_path: "/opt/homebrew/bin/timeout"
+timeout_path: "/usr/bin/timeout"

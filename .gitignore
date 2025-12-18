@@ -1,2 +1,5 @@
-seaflow-ec2-etc-ssh-2018-09-13.tar.gz
-seaflow-realtime.conf
+conda/
+.snakemake/
+logs/
+results/
+Miniforge3-Linux-x86_64.sh

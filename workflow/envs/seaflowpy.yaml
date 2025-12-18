@@ -1,0 +1,12 @@
+name: seaflowpy
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - pyarrow
+  - xopen
+  - pip=23.3
+  - pip:
+      - seaflowpy==14.6.2

@@ -1,0 +1,226 @@
+#!/usr/bin/env Rscript
+
+# optparse may not be installed globally so look for renv directory before
+# parsing cli args with optparse
+args <- commandArgs(trailingOnly = TRUE)
+renv_loc <- args == "--renv"
+if (any(renv_loc)) {
+  renv_idx <- which(renv_loc)
+  if (length(args) > renv_idx) {
+    proj_dir <- renv::activate(args[renv_idx + 1])
+    message("activated renv directory ", proj_dir)
+  }
+}
+
+library(tidyverse)
+
+#' Create a temporary file name
+mktempname <- function(root_dir, suffix) {
+  rand8char <- stringr::str_sub(uuid::UUIDgenerate(), 1, 8)
+  timestamp <- lubridate::format_ISO8601(lubridate::now())
+  return(file.path(root_dir, paste0("._", rand8char, "_", timestamp, "_", suffix)))
+}
+
+parser <- optparse::OptionParser(usage = "usage: realtime-popcycle.R [options]")
+# Have a separate instrument option here because in some cases the serial and
+# instrument name may differ. The serial will be used in the database to look up
+# values in the Mie theory table. If a new instrument (v2) has no entries in this
+# table the lookup will fail. To "fix" this, use instrument name to name output
+# files etc, and use a valid db serial (e.g. 740) for internal popcycle anlysis.
+parser <- optparse::add_option(parser, c("--instrument"),
+  type = "character", default = "",
+  help = "Instrument name (may differ from db serial). Required.",
+  metavar = "NAME"
+)
+parser <- optparse::add_option(parser, c("--db"),
+  type = "character", default = "",
+  help = "Popcycle database file. Required.",
+  metavar = "FILE"
+)
+parser <- optparse::add_option(parser, c("--evt-dir"),
+  type = "character", default = "",
+  help = "EVT directory. Required.",
+  metavar = "DIR"
+)
+parser <- optparse::add_option(parser, c("--opp-dir"),
+  type = "character", default = "",
+  help = "OPP directory. Required.",
+  metavar = "DIR"
+)
+parser <- optparse::add_option(parser, c("--vct-dir"),
+  type = "character", default = "",
+  help = "VCT directory. Required.",
+  metavar = "DIR"
+)
+parser <- optparse::add_option(parser, c("--stats-abund-file"),
+  type = "character", default = "",
+  help = "Stats table output file with abundance.",
+  metavar = "FILE"
+)
+parser <- optparse::add_option(parser, c("--sfl-file"),
+  type = "character", default = "",
+  help = "SFL table output file.",
+  metavar = "FILE"
+)
+parser <- optparse::add_option(parser, c("--correction"),
+  type = "double", default = 1,
+  help = "Abundance correction factor.",
+  metavar = "NUMBER"
+)
+parser <- optparse::add_option(parser, c("--volume"),
+  type = "double", default = -1,
+  help = "Use a constant volume value instead of calculating from SFL.",
+  metavar = "NUMBER"
+)
+parser <- optparse::add_option(parser, c("--max-event-rate"),
+  type = "double", default = -1,
+  help = "Maximum event rate per 3-minute file.",
+  metavar = "NUMBER"
+)
+parser <- optparse::add_option(parser, c("--cores"),
+  type = "integer", default = 1,
+  help = "Number of cores to use.",
+  metavar = "NUMBER"
+)
+parser <- optparse::add_option(parser, "--renv",
+  type = "character", default = "", metavar = "dir",
+  help = "Optional renv directory to use. Requires the renv package."
+)
+
+p <- optparse::parse_args2(parser)
+if (p$options$instrument == "" || p$options$db == "" || p$options$evt_dir == "" || p$options$opp_dir == "" || p$options$vct_dir == "") {
+  # Do nothing if instrument, db, evt_dir, opp_dir, vct_dir are not specified
+  message("error: must specify all of --instrument, --db, --evt-dir, --opp-dir, --vct-dir")
+  optparse::print_help(parser)
+  quit(save = "no", status = 10)
+} else {
+  cores <- p$options$cores
+  inst <- p$options$instrument
+  db <- p$options$db
+  evt_dir <- p$options$evt_dir
+  opp_dir <- p$options$opp_dir
+  vct_dir <- p$options$vct_dir
+
+  if (!file.exists(db)) {
+    message(paste0("db does not exist"))
+    quit(save = FALSE, status = 11)
+  }
+}
+
+stats_abund_file <- p$options$stats_abund_file
+sfl_file <- p$options$sfl_file
+correction <- p$options$correction
+volume <- p$options$volume
+if (is.na(volume) || (!is.numeric(volume)) || (volume < 0)) {
+  volume <- NULL
+}
+max_event_rate <- p$options$max_event_rate
+max_particles_per_file <- max_event_rate * 180  # events in a 3 minute file
+if ((!is.numeric(max_particles_per_file)) || (max_particles_per_file < 0)) {
+  max_particles_per_file <- NULL
+}
+
+serial <- popcycle::get_inst(db)
+cruise <- popcycle::get_cruise(db)
+quantile_ <- "50"
+
+dated_msg <- function(...) {
+  message(format(Sys.time(), "%Y-%m-%d %H:%M:%OS3"), ": ", ...)
+}
+
+dated_msg("Start")
+message("Configuration:")
+message("--------------")
+message(paste0("db = ", db))
+message(paste0("cruise (from db) = ", cruise))
+message(paste0("serial (from db) = ", serial))
+message(paste0("instrument = ", inst))
+message(paste0("evt-dir = ", evt_dir))
+message(paste0("opp-dir = ", opp_dir))
+message(paste0("vct-dir = ", vct_dir))
+message(paste0("stats-abund-file = ", stats_abund_file))
+message(paste0("sfl-file = ", sfl_file))
+message(paste0("quantile = ", quantile_))
+message(paste0("correction = ", correction))
+message(paste0("volume = ", volume))
+message(paste0("max-event-rate (max-particles-per-file) = ", max_event_rate, "(", max_particles_per_file, ")"))
+message("--------------")
+
+############################
+### ANALYZE NEW FILE(s)  ###
+############################
+dated_msg("Starting filtering")
+tmp_filter_db_file <- mktempname(dirname(db), basename(db))
+dated_msg(paste0("Using temp db for filtering = ", tmp_filter_db_file))
+file.copy(db, tmp_filter_db_file)
+popcycle::make_popcycle_db(tmp_filter_db_file)  # make sure all tables are present
+popcycle::filter_evt_files(tmp_filter_db_file, evt_dir, NULL, opp_dir, max_particles_per_file = max_particles_per_file, cores = cores)
+dated_msg("Completed filtering")
+Sys.sleep(2)
+dated_msg(paste0("Moving temp db file ", tmp_filter_db_file, " to ", db))
+file.rename(tmp_filter_db_file, db)
+
+dated_msg("Starting gating")
+tmp_gating_db_file <- mktempname(dirname(db), basename(db))
+dated_msg(paste0("Using temp db for gating = ", tmp_gating_db_file))
+file.copy(db, tmp_gating_db_file)
+popcycle::classify_opp_files(tmp_gating_db_file, opp_dir, NULL, vct_dir, cores = cores)
+dated_msg("Completed gating")
+Sys.sleep(2)
+dated_msg(paste0("Moving temp db file ", tmp_gating_db_file, " to ", db))
+file.rename(tmp_gating_db_file, db)
+
+
+##########################
+### Save Stats and SFL ###
+##########################
+# Create SFL table
+dated_msg("Creating SFL table")
+meta <- popcycle::create_realtime_meta(db, volume = volume)
+dated_msg("Created SFL table")
+# OPP EVT ratio
+opp_evt_ratio <- meta %>%
+  filter(file_flag == 0) %>%
+  pull(opp_evt_ratio) %>%
+  median()
+if (is.null(volume)) {
+  virtualcore_volume <- NULL
+} else {
+  virtualcore_volume <- opp_evt_ratio * volume
+}
+dated_msg(paste0("median(opp_evt_ratio) where file_flag == 0 = ", opp_evt_ratio))
+dated_msg(paste0("virtualcore volume = ", virtualcore_volume))
+# Create population statistics table
+dated_msg("Creating pop table")
+pop <- popcycle::create_realtime_bio(db, quantile_, correction = correction, virtualcore_volume = virtualcore_volume) %>%
+  dplyr::select(date, pop, n_count, abundance, diam_mid, diam_lwr, correction)
+
+if (sfl_file != "") {
+  dated_msg("saving SFL / metadata file")
+  filetype <- paste0("SeaFlowSFL_", inst)
+  description <- paste0("SeaFlow SFL data for instrument ", inst)
+  tmp_sfl_file <- mktempname(dirname(sfl_file), basename(sfl_file))
+  message(paste0("temp file for sfl = ", tmp_sfl_file))
+  popcycle::write_realtime_meta_tsdata(
+    meta, tmp_sfl_file,
+    project = cruise, filetype = filetype, description = description
+  )
+  file.rename(tmp_sfl_file, sfl_file)
+  dated_msg("saved SFL / metadata file")
+}
+
+if (stats_abund_file != "") {
+  dated_msg("saving stats / bio file with abundance")
+  filetype <- paste0("SeaFlowPopAbundance_", inst)
+  description <- paste0("SeaFlow population data for instrument ", inst)
+  tmp_stats_abund_file <- mktempname(dirname(stats_abund_file), basename(stats_abund_file))
+  message(paste0("temp file for stats-abund = ", tmp_stats_abund_file))
+  popcycle::write_realtime_bio_tsdata(
+    pop, tmp_stats_abund_file,
+    project = cruise, filetype = filetype, description = description
+  )
+  file.rename(tmp_stats_abund_file, stats_abund_file)
+  dated_msg("saved stats / bio file with abundance")
+}
+
+dated_msg("Done")

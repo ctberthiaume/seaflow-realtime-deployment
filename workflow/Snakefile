@@ -1,0 +1,55 @@
+from pathlib import Path
+from string import Template
+import yaml
+import sys
+from snakemake.utils import min_version
+
+min_version("9.1.0")
+
+def parse_shell_config(input_path):
+    """Parses a shell-like config file and returns a dictionary."""
+    config = {}
+    
+    with open(input_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            # Skip comments and empty lines
+            if not line or line.startswith('#'):
+                continue
+            
+            if '=' in line:
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                
+                # Check if value is wrapped in quotes and strip them
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                    value = value[1:-1]
+
+                # Perform variable expansion
+                expanded_value = Template(value).safe_substitute(config)
+                
+                config[key] = expanded_value
+    return config
+
+configfile: "config/config.yaml"
+
+# Update config with shell config if provided in main config
+if config.get("shell_config"):
+    shell_config = parse_shell_config(config["shell_config"])
+    yaml.dump(shell_config, sys.stdout, sort_keys=False, default_flow_style=False)
+    config["evt_root_dir"] = str(Path(shell_config["DSTEVTPATH"]).parent.expanduser())
+    config["cruise"] = shell_config["CRUISE"]
+    config["instrument"] = shell_config["INSTNAME"]
+    config["repo_dir"] = str(Path(shell_config["SYNCREALTIMEREPODIR"], "realtime-dbs").expanduser())
+    config["sync_dir"] = str(Path(shell_config["SYNCSRCDIR"]).expanduser())
+    config["start"] = shell_config["START"]
+else:
+    raise ValueError("shell_config must be specified in config.yaml")
+
+include: "rules/analysis.smk"
+
+rule all:
+    input:
+        f"<results>/seaflow_analysis/{config['cruise']}/done.txt",
+        f"<results>/subsample/{config['cruise']}/done.txt",
