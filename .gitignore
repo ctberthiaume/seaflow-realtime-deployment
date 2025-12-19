@@ -3,3 +3,5 @@ conda/
 logs/
 results/
 Miniforge3-Linux-x86_64.sh
+aux/config/config.yaml
+aux/conf/seaflow-realtime.conf
