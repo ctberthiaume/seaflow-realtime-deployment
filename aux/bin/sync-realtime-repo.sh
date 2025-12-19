@@ -18,9 +18,9 @@ echo "$(date -u): Starting sync of realtime repository"
 if [[ -d "${SYNCREALTIMEREPODIR}/realtime-dbs" ]]; then
     echo "$(date -u): Updating existing repository in ${SYNCREALTIMEREPODIR}/realtime-dbs"
     cd "${SYNCREALTIMEREPODIR}/realtime-dbs"
-    /opt/homebrew/bin/timeout -k 60s 5m git pull
+    "$TIMEOUTPATH" -k 60s 5m git pull
 else
     echo "$(date -u): Cloning repository from ${SYNCREALTIMEREPOURL} into ${SYNCREALTIMEREPODIR}/realtime-dbs"
-    /opt/homebrew/bin/timeout -k 60s 5m git clone "${SYNCREALTIMEREPOURL}" "${SYNCREALTIMEREPODIR}/realtime-dbs"
+    "$TIMEOUTPATH" -k 60s 5m git clone "${SYNCREALTIMEREPOURL}" "${SYNCREALTIMEREPODIR}/realtime-dbs"
 fi
 echo "$(date -u): Finished sync of realtime repository"

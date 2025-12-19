@@ -15,7 +15,7 @@ fi
 source "$CONFFILE"
 
 echo "$(date -u): Starting sync of ${SYNCSRCDIR} to ${SYNCHOST}:${SYNCDSTDIR}"
-/opt/homebrew/bin/timeout -k 60s 5m \
+"$TIMEOUTPATH" -k 60s 5m \
   /opt/homebrew/bin/rsync -au --timeout 600 --progress --stats --bwlimit=300000 \
   "${SYNCSRCDIR}" "${SYNCHOST}:${SYNCDSTDIR}"
 echo "$(date -u): Finished sync of ${SYNCSRCDIR} to ${SYNCHOST}:${SYNCDSTDIR}"

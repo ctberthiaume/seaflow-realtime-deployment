@@ -24,3 +24,5 @@ SYNCHOST="shore"
 # sync realtime repo
 SYNCREALTIMEREPOURL="https://github.com/seaflow-uw/realtime-dbs"
 SYNCREALTIMEREPODIR="~/scratch"
+# timeout binary location
+TIMEOUTPATH=/usr/local/bin/timeout

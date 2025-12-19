@@ -12,7 +12,7 @@ fi
 
 source "$CONFFILE"
 
-/opt/homebrew/bin/timeout -k 60s 5m \
+"$TIMEOUTPATH" -k 60s 5m \
   /Users/seaflow/bin/seaflow-transfer \
     -start "${START}" \
     -srcAddress "${SEAFLOWIP}" \
@@ -23,7 +23,7 @@ source "$CONFFILE"
 
 LOCAL_LOGPATH_TMP="${DSTLOGPATH}_tmp"
 LOCAL_LOGPATH="${DSTLOGPATH}"
-/opt/homebrew/bin/timeout -k 60s 5m \
+"$TIMEOUTPATH" -k 60s 5m \
   /usr/bin/scp -i "${SSHPUBLICKEY}" "${SSHUSER}"@"${SEAFLOWIP}":"${SRCLOGPATH}" "${LOCAL_LOGPATH_TMP}"
 if [ $? -eq 0 ]; then
     echo "moving ${LOCAL_LOGPATH_TMP} to ${LOCAL_LOGPATH}" >&2
