@@ -44,6 +44,7 @@ if config.get("shell_config"):
     config["repo_dir"] = str(Path(shell_config["SYNCREALTIMEREPODIR"], "realtime-dbs").expanduser())
     config["sync_dir"] = str(Path(shell_config["SYNCSRCDIR"]).expanduser())
     config["start"] = shell_config["START"]
+    config["timeout_path"] = shell_config.get("TIMEOUTPATH", "/opt/homebrew/bin/timeout")
 else:
     raise ValueError("shell_config must be specified in config.yaml")
 

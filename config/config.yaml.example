@@ -10,6 +10,3 @@ bead_sample_min_fsc: 30000
 bead_sample_min_pe: 30000
 bead_sample_min_chl: 25000
 opp_sample_count: 100000
-
-# timeout_path: "/opt/homebrew/bin/timeout"
-timeout_path: "/usr/bin/timeout"

@@ -26,3 +26,5 @@ SYNCREALTIMEREPOURL="https://github.com/seaflow-uw/realtime-dbs"
 SYNCREALTIMEREPODIR="~/scratch"
 # timeout binary location
 TIMEOUTPATH=/usr/local/bin/timeout
+# seaflowpy path
+SEAFLOWPYPATH=~/git/seaflowpy/.venv/bin/seaflowpy

@@ -325,3 +325,25 @@ rule subsample:
         # Timestamp in status file indicates last subsampling run.
         date -u > {output.status:q}
         """
+
+rule seaflowpy_version:
+    output:
+        version_file="<results>/seaflowpy_version.txt",
+    log: "<logs>/seaflowpy_version.log"
+    shell:
+        """
+        echo "$(date -u): Retrieving seaflowpy version" > {log:q}
+        seaflowpy version > {output.version_file:q} 2>> {log:q}
+        echo "$(date -u): seaflowpy version written to {output.version_file}" >> {log:q}
+        """
+
+rule popcycle_version:
+    output:
+        version_file="<results>/popcycle_version.txt",
+    log: "<logs>/popcycle_version.log"
+    shell:
+        """
+        echo "$(date -u): Retrieving popcycle R package version" > {log:q}
+        Rscript --slave -e 'packageVersion("popcycle")' > {output.version_file:q} 2>> {log:q}
+        echo "$(date -u): popcycle version written to {output.version_file}" >> {log:q}
+        """
