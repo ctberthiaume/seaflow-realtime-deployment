@@ -12,9 +12,14 @@ fi
 
 source "$CONFFILE"
 
-source /Users/seaflow/Desktop/realtime/conda/bin/activate
+source ~/Desktop/realtime/conda/bin/activate
 eval "$(mamba shell hook --shell bash)"
 conda activate snakemake
+cd ~/Desktop/realtime/seaflow-realtime-deployment
+if [[ "$?" -ne 0 ]]; then
+  echo "Could not change to seaflow-realtime-deployment directory"
+  exit 1
+fi
 
 "$TIMEOUTPATH" -k 60s 4h \
   snakemake -p --cores 3 \

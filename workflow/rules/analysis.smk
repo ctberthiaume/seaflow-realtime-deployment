@@ -5,6 +5,7 @@ rule concat_sfl:
         sfl=f"<results>/{{cruise}}_{config['instrument']}.sfl",
     params:
         instrument=config["instrument"],
+        seaflowpy_path=config["seaflowpy_path"],
     log: "<logs>/concat_sfl_{cruise}.log"
     shell:
         """
@@ -21,7 +22,7 @@ rule concat_sfl:
 
         echo "$(date -u): Concatenating SFL files for cruise {wildcards.cruise} and instrument {params.instrument}" > {log:q}
         echo "$(date -u): Using EVT directory: {input.evt_dir:q}" >> {log:q}
-        seaflowpy sfl print $(/usr/bin/find -L {input.evt_dir:q} -name '*.sfl' | sort) > {output.sfl:q} 2>> {log:q}
+        {params.seaflowpy_path:q} sfl print $(/usr/bin/find -L {input.evt_dir:q} -name '*.sfl' | sort) > {output.sfl:q} 2>> {log:q}
         echo "$(date -u): Finished concatenating SFL files for cruise {wildcards.cruise}" >> {log:q}
         """
 
@@ -144,6 +145,7 @@ rule subsample:
     output:
         status="<results>/subsample/{cruise}/done.txt",
     params:
+        seaflowpy_path=config["seaflowpy_path"],
         out_dir=lambda wildcards, input, output: Path(output.status).parent,
         sync_dir=f"{config['sync_dir']}/subsample/{{cruise}}",
         instrument=config["instrument"],
@@ -173,14 +175,14 @@ rule subsample:
 
         echo "$(date -u): Starting subsampling for cruise {wildcards.cruise} and instrument {params.instrument}" > {log:q}
         echo "$(date -u): Using EVT directory: {input.evt_dir:q}" >> {log:q}
-        echo "$(date -u): seaflowpy version $(seaflowpy version)" >> {log:q} 2>&1
+        echo "$(date -u): seaflowpy version $({params.seaflowpy_path:q} version)" >> {log:q} 2>&1
         
         # Create root output directory if it doesn't exist
         [[ -d {params.out_dir:q} ]] || mkdir -p {params.out_dir:q}
 
         # First get date range for last hour of EVT data
         echo "$(date -u): EVT date range" >> {log:q}
-        timeout -k 60s 5m seaflowpy evt dates \
+        timeout -k 60s 5m {params.seaflowpy_path:q} evt dates \
             --min-date "{params.start}" \
             --tail-hours "{params.sample_tail_hours}" \
             {input.evt_dir:q} | tee {params.out_dir:q}/evt_dates.txt >> {log:q} 2>&1
@@ -231,7 +233,7 @@ rule subsample:
             echo "$(date -u): Subsampling with no filters" >> {log:q}
             echo "$(date -u): mindate = $mindate, maxdate = $maxdate" >> {log:q}
             echo "$(date -u): output path = $outdir/last-{params.sample_tail_hours}-hours.fullSample.parquet" >> {log:q}
-            timeout -k 60s 5m seaflowpy evt sample \
+            timeout -k 60s 5m {params.seaflowpy_path:q} evt sample \
                 --min-date "$mindate" \
                 --max-date "$maxdate" \
                 --count "{params.sample_full_count}" \
@@ -259,7 +261,7 @@ rule subsample:
             echo "$(date -u): Subsampling for beads" >> {log:q}
             echo "$(date -u): mindate = $mindate, maxdate = $maxdate" >> {log:q}
             echo "$(date -u): output path = $outdir/last-{params.sample_tail_hours}-hours.beadSample.parquet" >> {log:q}
-            timeout -k 60s 5m seaflowpy evt sample \
+            timeout -k 60s 5m {params.seaflowpy_path:q} evt sample \
                 --min-date "$mindate" \
                 --max-date "$maxdate" \
                 --count 1500 \
@@ -293,7 +295,7 @@ rule subsample:
             echo "$(date -u): Subsampling OPP" >> {log:q}
             echo "$(date -u): mindate = $mindate, maxdate = $maxdate" >> {log:q}
             echo "$(date -u): output path = $outdir/$mindate.1H.opp.sample.parquet" >> {log:q}
-            timeout -k 60s 5m seaflowpy opp sample \
+            timeout -k 60s 5m {params.seaflowpy_path:q} opp sample \
                 --min-date "$mindate" \
                 --max-date "$maxdate" \
                 --count "{params.opp_sample_count}" \
@@ -329,11 +331,13 @@ rule subsample:
 rule seaflowpy_version:
     output:
         version_file="<results>/seaflowpy_version.txt",
+    params:
+        seaflowpy_path=config["seaflowpy_path"],
     log: "<logs>/seaflowpy_version.log"
     shell:
         """
         echo "$(date -u): Retrieving seaflowpy version" > {log:q}
-        seaflowpy version > {output.version_file:q} 2>> {log:q}
+        {params.seaflowpy_path:q} version > {output.version_file:q} 2>> {log:q}
         echo "$(date -u): seaflowpy version written to {output.version_file}" >> {log:q}
         """
 
