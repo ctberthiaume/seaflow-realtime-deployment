@@ -8,6 +8,7 @@
         <array>
             <string>/Users/seaflow/bin/fda-wrapper</string>
 			<string>/bin/bash</string>
+            <string>--login</string>
             <string>/Users/seaflow/bin/snakemake-seaflow-analysis.sh</string>
             <string>/Users/seaflow/seaflow-realtime.conf</string>
         </array>
