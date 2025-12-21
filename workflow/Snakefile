@@ -45,7 +45,7 @@ if config.get("shell_config"):
     config["sync_dir"] = str(Path(shell_config["SYNCSRCDIR"]).expanduser())
     config["start"] = shell_config["START"]
     config["timeout_path"] = shell_config.get("TIMEOUTPATH", "/opt/homebrew/bin/timeout")
-    config["seaflowpy_path"] = shell_config.get("SEAFLOWPY_PATH", "/Users/seaflow/.local/bin/seaflowpy")
+    config["seaflowpy_path"] = shell_config.get("SEAFLOWPYPATH", "/Users/seaflow/.local/bin/seaflowpy")
 else:
     raise ValueError("shell_config must be specified in config.yaml")
 
