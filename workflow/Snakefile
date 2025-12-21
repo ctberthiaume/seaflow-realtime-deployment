@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from string import Template
 import yaml
@@ -26,9 +27,13 @@ def parse_shell_config(input_path):
                 if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
                     value = value[1:-1]
 
-                # Perform variable expansion
+                # Manipulations to mimic shell variable and tilde expansion
+                # Perform variable expansion based on already parsed keys
                 expanded_value = Template(value).safe_substitute(config)
-                
+                # Expand user (~) and environment variables
+                expanded_value = os.path.expanduser(expanded_value)
+                expanded_value = os.path.expandvars(expanded_value)
+
                 config[key] = expanded_value
     return config
 
