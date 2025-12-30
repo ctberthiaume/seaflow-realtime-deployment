@@ -12,7 +12,7 @@ fi
 
 source "$CONFFILE"
 
-/Users/seaflow/bin/cruisemic \
-  -raw -udp -flush -interval 1m \
+"$CRUISEMICPATH" \
+  -raw -udp -flush -interval 1m -quiet \
   -dir "${CRUISEMICDIR}" \
   -port "${CRUISEMICPORT}" -parser "${CRUISEMICPARSER}" -name "${CRUISE}"

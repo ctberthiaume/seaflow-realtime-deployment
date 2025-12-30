@@ -1,11 +1,12 @@
 rule concat_sfl:
     input:
-        evt_dir=f"{config['evt_root_dir']}/{{cruise}}_evt",
+        evt_status=f"{config['evt_root_dir']}/{{cruise}}/SFlog.txt"  # use lgo file as marker for EVT updates
     output:
         sfl=f"<results>/{{cruise}}_{config['instrument']}.sfl",
     params:
         instrument=config["instrument"],
         seaflowpy_path=config["seaflowpy_path"],
+        evt_dir=f"{config['evt_root_dir']}/{{cruise}}/evt",
     log: "<logs>/concat_sfl_{cruise}.log"
     shell:
         """
@@ -21,8 +22,8 @@ rule concat_sfl:
         trap rotate_logs EXIT
 
         echo "$(date -u): Concatenating SFL files for cruise {wildcards.cruise} and instrument {params.instrument}" > {log:q}
-        echo "$(date -u): Using EVT directory: {input.evt_dir:q}" >> {log:q}
-        {params.seaflowpy_path:q} sfl print $(/usr/bin/find -L {input.evt_dir:q} -name '*.sfl' | sort) > {output.sfl:q} 2>> {log:q}
+        echo "$(date -u): Using EVT directory: {params.evt_dir:q}" >> {log:q}
+        {params.seaflowpy_path:q} sfl print $(/usr/bin/find -L {params.evt_dir:q} -name '*.sfl' | sort) > {output.sfl:q} 2>> {log:q}
         echo "$(date -u): Finished concatenating SFL files for cruise {wildcards.cruise}" >> {log:q}
         """
 
@@ -30,13 +31,13 @@ rule seaflow_analysis:
     input:
         repo_db=config["repo_dir"] + f"/dbs/{{cruise}}_{config['instrument']}.db",
         sfl=rules.concat_sfl.output.sfl,
-        evt_dir=f"{config['evt_root_dir']}/{{cruise}}_evt",
     output:
         status=f"<results>/seaflow_analysis/{{cruise}}/done.txt",
     log: "<logs>/seaflow_analysis.{cruise}.log"
     threads: config["seaflow_analysis_threads"]
     params:
         db=lambda wildcards, input, output: str(Path(output.status).parent / f"{wildcards.cruise}.db"),
+        evt_dir=rules.concat_sfl.params.evt_dir,
         opp_dir=lambda wildcards, input, output: str(Path(output.status).parent / f"{wildcards.cruise}_opp"),
         vct_dir=lambda wildcards, input, output: str(Path(output.status).parent / f"{wildcards.cruise}_vct"),
         stats_abund_file=lambda wildcards, input, output: str(Path(output.status).parent / f"stats-abund.{wildcards.cruise}.tsdata"),
@@ -101,13 +102,13 @@ rule seaflow_analysis:
 
         # Classify and produce summary image files
         echo "$(date -u): Starting filtering and classification for cruise {wildcards.cruise}" >> {log:q}
-        echo "$(date -u): Using evt directory {input.evt_dir} and input db {params.temp_db}" >> {log:q}
+        echo "$(date -u): Using evt directory {params.evt_dir} and input db {params.temp_db}" >> {log:q}
         echo "$(date -u): Filtering and classifying data in {params.db}, {params.opp_dir}, and {params.vct_dir}" >> {log:q}
         {params.timeout_path} -k 60s 2h \
             Rscript --slave {params.realtime_script:q} \
                 --instrument "{params.instrument}" \
                 --db {params.temp_db:q} \
-                --evt-dir {input.evt_dir:q} \
+                --evt-dir {params.evt_dir:q} \
                 --opp-dir {params.opp_dir:q} \
                 --vct-dir {params.vct_dir:q} \
                 --stats-abund-file {params.stats_abund_file:q} \
@@ -139,15 +140,15 @@ rule seaflow_analysis:
 
 rule subsample:
     input:
-        evt_dir=rules.seaflow_analysis.input.evt_dir,
-        opp_dir="<results>/seaflow_analysis/{cruise}/{cruise}_opp",
         analysis_status=rules.seaflow_analysis.output.status,  # make sure OPP is ready
     output:
-        status="<results>/subsample/{cruise}/done.txt",
+        status=f"<results>/subsample/{{cruise}}/{config['instrument']}/done.txt",
     params:
         seaflowpy_path=config["seaflowpy_path"],
+        evt_dir=rules.concat_sfl.params.evt_dir,
+        opp_dir=f"<results>/seaflow_analysis/{{cruise}}/{{cruise}}_opp",  # don't use rules.seaflow_analysis.params.opp_dir, it will evaluate to an OPP dir in subsample dir
         out_dir=lambda wildcards, input, output: Path(output.status).parent,
-        sync_dir=f"{config['sync_dir']}/subsample/{{cruise}}",
+        sync_dir=f"{config['sync_dir']}/subsample/{{cruise}}/{config['instrument']}/",
         instrument=config["instrument"],
         start=config["start"],
         sample_tail_hours=config["tail_hours"],
@@ -156,6 +157,7 @@ rule subsample:
         bead_sample_min_pe=config["bead_sample_min_pe"],
         bead_sample_min_chl=config["bead_sample_min_chl"],
         opp_sample_count=config["opp_sample_count"],
+        timeout_path=config["timeout_path"],
     log: "<logs>/subsample.{cruise}.log"
     shell:
         """
@@ -174,7 +176,7 @@ rule subsample:
         trap rotate_logs EXIT
 
         echo "$(date -u): Starting subsampling for cruise {wildcards.cruise} and instrument {params.instrument}" > {log:q}
-        echo "$(date -u): Using EVT directory: {input.evt_dir:q}" >> {log:q}
+        echo "$(date -u): Using EVT directory: {params.evt_dir:q}" >> {log:q}
         echo "$(date -u): seaflowpy version $({params.seaflowpy_path:q} version)" >> {log:q} 2>&1
         
         # Create root output directory if it doesn't exist
@@ -182,10 +184,10 @@ rule subsample:
 
         # First get date range for last hour of EVT data
         echo "$(date -u): EVT date range" >> {log:q}
-        timeout -k 60s 5m {params.seaflowpy_path:q} evt dates \
+        {params.timeout_path:q} -k 60s 5m {params.seaflowpy_path:q} evt dates \
             --min-date "{params.start}" \
             --tail-hours "{params.sample_tail_hours}" \
-            {input.evt_dir:q} | tee {params.out_dir:q}/evt_dates.txt >> {log:q} 2>&1
+            {params.evt_dir:q} | tee {params.out_dir:q}/evt_dates.txt >> {log:q} 2>&1
         status=$?
         if [[ $status -eq 124 ]]; then
             echo "$(date -u): evt dates killed by timeout sigint" >> {log:q}
@@ -233,14 +235,14 @@ rule subsample:
             echo "$(date -u): Subsampling with no filters" >> {log:q}
             echo "$(date -u): mindate = $mindate, maxdate = $maxdate" >> {log:q}
             echo "$(date -u): output path = $outdir/last-{params.sample_tail_hours}-hours.fullSample.parquet" >> {log:q}
-            timeout -k 60s 5m {params.seaflowpy_path:q} evt sample \
+            {params.timeout_path:q} -k 60s 5m {params.seaflowpy_path:q} evt sample \
                 --min-date "$mindate" \
                 --max-date "$maxdate" \
                 --count "{params.sample_full_count}" \
                 --file-fraction 1.0 \
                 --verbose \
                 --outpath "$outdir/last-{params.sample_tail_hours}-hours.fullSample.parquet" \
-                {input.evt_dir:q} >> {log:q} 2>&1
+                {params.evt_dir:q} >> {log:q} 2>&1
             status=$?
             if [[ $status -eq 124 ]]; then
                 echo "$(date -u): full subsample killed by timeout sigint" >> {log:q}
@@ -261,7 +263,7 @@ rule subsample:
             echo "$(date -u): Subsampling for beads" >> {log:q}
             echo "$(date -u): mindate = $mindate, maxdate = $maxdate" >> {log:q}
             echo "$(date -u): output path = $outdir/last-{params.sample_tail_hours}-hours.beadSample.parquet" >> {log:q}
-            timeout -k 60s 5m {params.seaflowpy_path:q} evt sample \
+            {params.timeout_path:q} -k 60s 5m {params.seaflowpy_path:q} evt sample \
                 --min-date "$mindate" \
                 --max-date "$maxdate" \
                 --count 1500 \
@@ -273,7 +275,7 @@ rule subsample:
                 --multi --file-fraction 1.0 \
                 --verbose \
                 --outpath "$outdir/last-{params.sample_tail_hours}-hours.beadSample.parquet" \
-                {input.evt_dir:q} >> {log:q} 2>&1
+                {params.evt_dir:q} >> {log:q} 2>&1
             status=$?
             if [[ $status -eq 124 ]]; then
                 echo "$(date -u): bead subsample killed by timeout sigint" >> {log:q}
@@ -295,12 +297,12 @@ rule subsample:
             echo "$(date -u): Subsampling OPP" >> {log:q}
             echo "$(date -u): mindate = $mindate, maxdate = $maxdate" >> {log:q}
             echo "$(date -u): output path = $outdir/$mindate.1H.opp.sample.parquet" >> {log:q}
-            timeout -k 60s 5m {params.seaflowpy_path:q} opp sample \
+            {params.timeout_path:q} -k 60s 5m {params.seaflowpy_path:q} opp sample \
                 --min-date "$mindate" \
                 --max-date "$maxdate" \
                 --count "{params.opp_sample_count}" \
                 --outpath "$outdir/$mindate.1H.opp.sample.parquet" \
-                {input.opp_dir:q} >> {log:q} 2>&1
+                {params.opp_dir:q} >> {log:q} 2>&1
                 status=$?
                 if [[ $status -eq 124 ]]; then
                     echo "$(date -u): OPP subsample killed by timeout sigint" >> {log:q}
@@ -321,11 +323,91 @@ rule subsample:
         echo "$(date -u): Copying EVT date range to sync folder" >> {log:q}
         cp -a "{params.out_dir:q}/evt_dates.txt" {params.sync_dir:q} 2>> {log:q}
         echo "$(date -u): Copying latest subsample folder '$outdir' to sync dir '{params.sync_dir}'" >> {log:q}
-        cp -ra "$outdir" {params.sync_dir:q}
+        cp -a "$outdir" {params.sync_dir:q} 2>> {log:q}
 
         echo "$(date -u): Finished subsampling for cruise {wildcards.cruise}" >> {log:q}
         # Timestamp in status file indicates last subsampling run.
         date -u > {output.status:q}
+        """
+
+rule seaflog:
+    input:
+        log_file=f"{config['evt_root_dir']}/{{cruise}}/SFlog.txt",
+    output:
+        seaflog_file="<results>/seaflog/{cruise}/seaflog.{cruise}.tsdata",
+    params:
+        seaflog_path=config["seaflog_path"],
+        instrument=config["instrument"],
+        start=config["start"],
+        end=config["end"],
+        sync_dir=f"{config['sync_dir']}/seaflog/{{cruise}}",
+    log: "<logs>/seaflog.{cruise}.log"
+    shell:
+        """
+        {params.seaflog_path:q} --version >> {log:q} 2>&1
+        echo "$(date -u): Generating seaflog for cruise {wildcards.cruise} and instrument {params.instrument}" >> {log:q}
+        {params.seaflog_path:q} \
+            --filetype SeaFlowInstrumentLog_{params.instrument} \
+            --project {wildcards.cruise} \
+            --description "SeaFlow instrument log for {wildcards.cruise}, {params.start} - {params.end}" \
+            --earliest "{params.start}" \
+            --latest "{params.end}" \
+            --logfile {input.log_file:q} \
+            --outfile {output.seaflog_file:q} \
+            --quiet >> {log:q} >> {log:q} 2>&1
+        echo "$(date -u): Finished generating seaflog for cruise {wildcards.cruise}" >> {log:q}
+
+        # Copy for sync
+        [[ -d {params.sync_dir:q} ]] || mkdir -p {params.sync_dir:q} 2>> {log:q}
+        echo "$(date -u): Copying seaflog file to sync folder" >> {log:q}
+        cp -a {output.seaflog_file:q} {params.sync_dir:q} 2>> {log:q}
+        echo "$(date -u): Finished copying seaflog file to sync folder" >> {log:q}
+        """
+
+rule diagnostics:
+    input:
+        seaflow_analysis_done=rules.seaflow_analysis.output.status,
+        subsample_done=rules.subsample.output.status,
+    output:
+        background_file="<results>/seaflow-diagnostics/{cruise}/background.{cruise}.tsdata",
+        drift_file="<results>/seaflow-diagnostics/{cruise}/drift.{cruise}.tsdata",
+    params:
+        stats_abund_file=lambda wildcards, input, output: Path(input.seaflow_analysis_done).parent / f"stats-abund.{wildcards.cruise}.tsdata",
+        subsample_dir=lambda wildcards, input, output: Path(input.subsample_done).parent,
+        instrument=config["instrument"],
+        timeout_path=config["timeout_path"],
+        diag_script=Path(workflow.current_basedir) / "../scripts/realtime-diagnostics.R",
+        sync_dir=f"{config['sync_dir']}/seaflow-diagnostics/{{cruise}}",
+    log: "<logs>/seaflow-diagnostics.{cruise}.log"
+    shell:
+        """
+        echo "$(date -u): Starting realtime diagnostics for cruise {wildcards.cruise}" >> {log:q}
+
+        {params.timeout_path:q} -k 60s 2h \
+        Rscript --slave {params.diag_script:q} \
+            --instrument {params.instrument} \
+            --cruise {wildcards.cruise} \
+            --subsample-dir {params.subsample_dir:q} \
+            --stats-file {params.stats_abund_file:q} \
+            --background-file {output.background_file:q} \
+            --drift-file {output.drift_file:q} >> {log:q} 2>&1
+        status=$?
+        if [[ $status -eq 124 ]]; then
+            echo "$(date -u): diagnostics killed by timeout sigint" 1>&2
+        elif [[ $status -eq 137 ]]; then
+            echo "$(date -u): diagnostics killed by timeout sigkill" 1>&2
+        elif [[ $status -gt 0 ]]; then
+            echo "$(date -u): diagnostics exited with an error, status = $status" 1>&2
+        else
+            echo "$(date -u): diagnostics completed successfully" 1>&2
+        fi
+
+        # Copy for sync
+        [[ -d {params.sync_dir:q} ]] || mkdir -p {params.sync_dir:q} 2>> {log:q}
+        echo "$(date -u): Copying background and drift files to sync folder" >> {log:q}
+        cp -a {output.background_file:q} {params.sync_dir:q} 2>> {log:q}
+        cp -a {output.drift_file:q} {params.sync_dir:q} 2>> {log:q}
+        echo "$(date -u): Finished copying background and drift files to sync folder" >> {log:q}
         """
 
 rule seaflowpy_version:

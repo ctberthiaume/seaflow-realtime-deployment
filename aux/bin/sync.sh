@@ -14,8 +14,16 @@ fi
 
 source "$CONFFILE"
 
+# Remove any trailing slashes so that rsync works predictably
+shopt -s extglob
+SYNCSRCDIR="${SYNCSRCDIR%%+(/)}"
+SYNCDSTDIR="${SYNCDSTDIR%%+(/)}"
+
+# Set rsync --timeout of 14 min, and if that doesn't work then enforece with
+# a timeout wrapper that kills after 15 min.
 echo "$(date -u): Starting sync of ${SYNCSRCDIR} to ${SYNCHOST}:${SYNCDSTDIR}"
-"$TIMEOUTPATH" -k 60s 5m \
-  /opt/homebrew/bin/rsync -au --timeout 600 --progress --stats --bwlimit=300000 \
-  "${SYNCSRCDIR}" "${SYNCHOST}:${SYNCDSTDIR}"
-echo "$(date -u): Finished sync of ${SYNCSRCDIR} to ${SYNCHOST}:${SYNCDSTDIR}"
+echo "$RSYNCPATH -au --timeout 840 --progress --stats --bwlimit=300K ${SYNCSRCDIR}/ ${SYNCHOST}:${SYNCDSTDIR}"
+"$TIMEOUTPATH" -k 60s 15m \
+  "$RSYNCPATH" -au --timeout 840 --progress --stats --bwlimit=300K \
+  "${SYNCSRCDIR}/" "${SYNCHOST}:${SYNCDSTDIR}"
+echo "$(date -u): Finished sync of ${SYNCSRCDIR}/ to ${SYNCHOST}:${SYNCDSTDIR}"

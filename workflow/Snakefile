@@ -8,7 +8,11 @@ from snakemake.utils import min_version
 min_version("9.1.0")
 
 def parse_shell_config(input_path):
-    """Parses a shell-like config file and returns a dictionary."""
+    """Parses a shell-like config file and returns a dictionary.
+    
+    Will not handle comments at then end of a line, so don't do that.
+    TODO: handle comments at end of line.
+    """
     config = {}
     
     with open(input_path, 'r') as f:
@@ -43,14 +47,16 @@ configfile: "config/config.yaml"
 if config.get("shell_config"):
     shell_config = parse_shell_config(config["shell_config"])
     yaml.dump(shell_config, sys.stdout, sort_keys=False, default_flow_style=False)
-    config["evt_root_dir"] = str(Path(shell_config["DSTEVTPATH"]).parent.expanduser())
+    config["evt_root_dir"] = str(Path(shell_config["DSTEVTPATH"]).parent.parent.expanduser())
     config["cruise"] = shell_config["CRUISE"]
     config["instrument"] = shell_config["INSTNAME"]
     config["repo_dir"] = str(Path(shell_config["SYNCREALTIMEREPODIR"], "realtime-dbs").expanduser())
     config["sync_dir"] = str(Path(shell_config["SYNCSRCDIR"]).expanduser())
     config["start"] = shell_config["START"]
+    config["end"] = shell_config["END"]
     config["timeout_path"] = shell_config.get("TIMEOUTPATH", "/opt/homebrew/bin/timeout")
-    config["seaflowpy_path"] = shell_config.get("SEAFLOWPYPATH", "/Users/seaflow/.local/bin/seaflowpy")
+    config["seaflowpy_path"] = shell_config.get("SEAFLOWPYPATH", "/Users/seaflow/bin/seaflowpy")
+    config["seaflog_path"] = shell_config.get("SEAFLOGPATH", "/Users/seaflow/bin/seaflog")
 else:
     raise ValueError("shell_config must be specified in config.yaml")
 
@@ -59,4 +65,6 @@ include: "rules/analysis.smk"
 rule all:
     input:
         f"<results>/seaflow_analysis/{config['cruise']}/done.txt",
-        f"<results>/subsample/{config['cruise']}/done.txt",
+        f"<results>/subsample/{config['cruise']}/{config['instrument']}/done.txt",
+        f"<results>/seaflog/{config['cruise']}/seaflog.{config['cruise']}.tsdata",
+        f"<results>/seaflow-diagnostics/{config['cruise']}/background.{config['cruise']}.tsdata",

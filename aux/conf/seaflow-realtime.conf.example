@@ -1,6 +1,7 @@
 CRUISE="TN444"
 INSTNAME="130"
 START="2025-05-22T00:00:00Z"
+END="2025-06-10T00:00:00Z"
 
 # SMB mount
 SEAFLOWIP="192.168.1.241"
@@ -25,6 +26,14 @@ SYNCHOST="shore"
 SYNCREALTIMEREPOURL="https://github.com/seaflow-uw/realtime-dbs"
 SYNCREALTIMEREPODIR="~/scratch"
 # timeout binary location
-TIMEOUTPATH=/usr/local/bin/timeout
+TIMEOUTPATH=/opt/homebrew/bin/timeout
+# TIMEOUTPATH=/usr/local/bin/timeout
 # seaflowpy path
 SEAFLOWPYPATH=~/git/seaflowpy/.venv/bin/seaflowpy
+# rsync path
+RSYNCPATH=/opt/homebrew/bin/rsync
+# RSYNCPATH=/usr/local/bin/rsync
+# seaflog path
+SEAFLOGPATH=/Users/seaflow/bin/seaflog
+# cruisemic path
+CRUISEMICPATH=/Users/seaflow/bin/cruisemic

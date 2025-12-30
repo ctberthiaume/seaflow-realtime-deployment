@@ -10,19 +10,30 @@ if [[ ! -e "$CONFFILE" ]]; then
   exit 1
 fi
 
+set -euo pipefail
+
 source "$CONFFILE"
 
-source ~/Desktop/realtime/conda/bin/activate
+# source will pass the current script's arguments to the file
+# being sourced, so make sure to unset it here, otherwise
+# conda will try to actiate an environment named '$CONFFILE'.
+source ~/Desktop/realtime/conda/bin/activate ""
 eval "$(mamba shell hook --shell bash)"
-conda activate snakemake
+
+# conda activate snakemake
+
 cd ~/Desktop/realtime/seaflow-realtime-deployment
 if [[ "$?" -ne 0 ]]; then
   echo "Could not change to seaflow-realtime-deployment directory"
   exit 1
 fi
 
-"$TIMEOUTPATH" -k 60s 4h \
-  snakemake -p --cores 3 \
-    --config shell_config=$HOME/seaflow-realtime.conf \
-    --rerun-incomplete \
-    results/popcycle_version.txt results/seaflowpy_version.txt
+# Snakemake sends output to stderr, so match here
+echo "$(date -u):$(date): Starting snakemake pipeline" >&2
+"$TIMEOUTPATH" -k 60s 8h \
+  conda run -n snakemake --no-capture-output \
+    snakemake -p --cores 3 \
+        --config shell_config=$HOME/seaflow-realtime.conf \
+        --rerun-incomplete
+echo "$(date -u):$(date): Snakemake pipeline finished" <&2
+
