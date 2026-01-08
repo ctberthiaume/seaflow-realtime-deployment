@@ -17,7 +17,7 @@ source "$CONFFILE"
 # source will pass the current script's arguments to the file
 # being sourced, so make sure to unset it here, otherwise
 # conda will try to actiate an environment named '$CONFFILE'.
-TODO: make conda location a variable in the config file
+# TODO: make conda location a variable in the config file
 source ~/Desktop/realtime/conda/bin/activate ""
 eval "$(mamba shell hook --shell bash)"
 
