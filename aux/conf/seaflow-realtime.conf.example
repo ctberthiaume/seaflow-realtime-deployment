@@ -11,20 +11,21 @@ MOUNTPOINT="/Users/seaflow/instrument"
 SRCLOGPATH="Desktop/seaflow2files/logs/SFlog.txt"
 SRCEVTPATH="Desktop/seaflow2files/datafiles/evt"
 DSTLOGPATH="/Users/seaflow/Desktop/realtime/seaflow-transfer/$CRUISE/SFlog.txt"
-DSTEVTPATH="~/scratch/TN444-perftest/$CRUISE-evt"
+DSTEVTPATH="/Users/seaflow/Desktop/realtime/seaflow-transfer/$CRUISE/evt"
 SSHUSER="seaflow"
 SSHPUBLICKEY="/Users/seaflow/.ssh/realtime2inst_ed25519"
 # cruisemic
+CRUISEMICPATH=/Users/seaflow/bin/cruisemic
 CRUISEMICDIR="/Users/seaflow/Desktop/realtime/cruisemic/$CRUISE"
 CRUISEMICPORT="55558"
 CRUISEMICPARSER="TN427"
 # sync
-SYNCSRCDIR="~/scratch/realtime-sync"
+SYNCSRCDIR="/Users/seaflow/Desktop/realtime/sync"
 SYNCDSTDIR="realtime-sync/"
 SYNCHOST="shore"
 # sync realtime repo
 SYNCREALTIMEREPOURL="https://github.com/seaflow-uw/realtime-dbs"
-SYNCREALTIMEREPODIR="~/scratch"
+SYNCREALTIMEREPODIR="/Users/seaflow/Desktop/realtime/sync-realtime-repo"
 # timeout binary location
 TIMEOUTPATH=/opt/homebrew/bin/timeout
 # TIMEOUTPATH=/usr/local/bin/timeout
@@ -35,5 +36,3 @@ RSYNCPATH=/opt/homebrew/bin/rsync
 # RSYNCPATH=/usr/local/bin/rsync
 # seaflog path
 SEAFLOGPATH=/Users/seaflow/bin/seaflog
-# cruisemic path
-CRUISEMICPATH=/Users/seaflow/bin/cruisemic

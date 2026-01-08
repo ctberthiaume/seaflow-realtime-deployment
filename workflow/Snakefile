@@ -64,6 +64,7 @@ include: "rules/analysis.smk"
 
 rule all:
     input:
+        f"<results>/{config['cruise']}_{config['instrument']}.sfl",
         f"<results>/seaflow_analysis/{config['cruise']}/done.txt",
         f"<results>/subsample/{config['cruise']}/{config['instrument']}/done.txt",
         f"<results>/seaflog/{config['cruise']}/seaflog.{config['cruise']}.tsdata",

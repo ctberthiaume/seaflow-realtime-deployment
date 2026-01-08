@@ -1,17 +1,5 @@
 #!/usr/bin/env Rscript
 
-# optparse may not be installed globally so look for renv directory before
-# parsing cli args with optparse
-args <- commandArgs(trailingOnly = TRUE)
-renv_loc <- args == "--renv"
-if (any(renv_loc)) {
-  renv_idx <- which(renv_loc)
-  if (length(args) > renv_idx) {
-    proj_dir <- renv::activate(args[renv_idx + 1])
-    message("activated renv directory ", proj_dir)
-  }
-}
-
 library(tidyverse)
 
 #' Create a temporary file name

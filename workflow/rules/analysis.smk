@@ -1,6 +1,6 @@
 rule concat_sfl:
     input:
-        evt_status=f"{config['evt_root_dir']}/{{cruise}}/SFlog.txt"  # use lgo file as marker for EVT updates
+        evt_status=f"{config['evt_root_dir']}/{{cruise}}/SFlog.txt"  # use log file as marker for EVT updates
     output:
         sfl=f"<results>/{{cruise}}_{config['instrument']}.sfl",
     params:
@@ -51,6 +51,7 @@ rule seaflow_analysis:
         maxeventrate=config["max_event_rate"],
         sync_dir=f"{config['sync_dir']}/seaflow-analysis/{{cruise}}",
         timeout_path=config["timeout_path"],
+        seaflowpy_path=config["seaflowpy_path"],
         realtime_script=Path(workflow.current_basedir) / "../scripts/realtime-popcycle.R",
     shell:
         """
@@ -66,12 +67,12 @@ rule seaflow_analysis:
         trap rotate_logs EXIT
 
         echo "$(date -u): Starting seaflow analysis for cruise {wildcards.cruise} and instrument {params.instrument}" > {log:q}
-        echo "$(date -u): seaflowpy version $(seaflowpy version)" >> {log:q} 2>&1
+        echo "$(date -u): seaflowpy version $({params.seaflowpy_path} version)" >> {log:q} 2>&1
         # DB preparation section
         # -----------------------------------------------------------------------------
         if [[ ! -e {params.db:q} ]]; then
             echo "$(date -u): Creating new temp database {params.temp_db} for cruise {wildcards.cruise} and instrument {params.instrument}" >> {log:q}
-            seaflowpy db create {wildcards.cruise} {params.instrument} {params.temp_db:q} >> {log:q} 2>&1
+            {params.seaflowpy_path:q} db create {wildcards.cruise} {params.instrument} {params.temp_db:q} >> {log:q} 2>&1
         else
             echo "$(date -u): Database {params.db:q} already exists. Copying to temp file {params.temp_db:q}." >> {log:q}
             cp {params.db:q} {params.temp_db:q}
@@ -91,7 +92,7 @@ rule seaflow_analysis:
         sqlite3 {input.repo_db:q} ".dump filter_plan" | sqlite3 {params.temp_db:q} >> {log:q} 2>&1
 
         echo "$(date -u): Populating database {params.temp_db} with SFL data from {input.sfl}" >> {log:q}
-        seaflowpy db import-sfl -f {input.sfl:q} {params.temp_db:q} >> {log:q} 2>&1
+        {params.seaflowpy_path:q} db import-sfl -f {input.sfl:q} {params.temp_db:q} >> {log:q} 2>&1
 
         echo "$(date -u): Database preparation complete for cruise {wildcards.cruise} and instrument {params.instrument}" >> {log:q}
 
@@ -145,8 +146,9 @@ rule subsample:
         status=f"<results>/subsample/{{cruise}}/{config['instrument']}/done.txt",
     params:
         seaflowpy_path=config["seaflowpy_path"],
+        req_script=Path(workflow.current_basedir) / "../scripts/subsampling_required.py",
         evt_dir=rules.concat_sfl.params.evt_dir,
-        opp_dir=f"<results>/seaflow_analysis/{{cruise}}/{{cruise}}_opp",  # don't use rules.seaflow_analysis.params.opp_dir, it will evaluate to an OPP dir in subsample dir
+        opp_dir=f"results/seaflow_analysis/{{cruise}}/{{cruise}}_opp",  # don't use rules.seaflow_analysis.params.opp_dir, it will evaluate to an OPP dir in subsample dir
         out_dir=lambda wildcards, input, output: Path(output.status).parent,
         sync_dir=f"{config['sync_dir']}/subsample/{{cruise}}/{config['instrument']}/",
         instrument=config["instrument"],
@@ -207,23 +209,19 @@ rule subsample:
             exit
         fi
 
-        # Get output directory name and retrieve date range
+        # Get output directory name and check if subsampling is required
         mindate=$(awk '{{print $1}}' {params.out_dir:q}/evt_dates.txt)
         maxdate=$(awk '{{print $2}}' {params.out_dir:q}/evt_dates.txt)
         outdir="{params.out_dir}/$mindate"
+        echo "$(date -u): python3 {params.req_script:q} {params.out_dir:q} $mindate" >> {log:q}
+        req_output=$(python3 {params.req_script:q} "{params.out_dir:q}" "$mindate" 2>> {log:q})
+        echo "$(date -u): Subsampling required output: $req_output" >> {log:q}
 
-        if [[ -d "$outdir" ]]; then
-            # Python one-liner: returns exit code 0 (success) if older than 3600s, 1 (fail) otherwise
-            if python3 -c "import os, time, sys; sys.exit(0 if (time.time() - os.path.getmtime(sys.argv[1])) > 3600 else 1)" "$outdir"; then
-                echo "$(date -u): Directory $outdir exists and was created more than 1 hour ago." >> {log:q}
-            else
-                echo "$(date -u): Directory $outdir exists and was created less than 1 hour ago." >> {log:q}
-                echo "$(date -u): Skipping subsampling." >> {log:q}
-                # Touch status to indicate the rule ran, but don't update timestamp.
-                # Timestamp in status file indicates last subsampling run.
-                touch {output.status:q}
-                exit 0
-            fi
+        if [[ $req_output = "True" ]]; then
+            echo "$(date -u): Subsampling required for output directory $outdir" >> {log:q}
+        else
+            echo "$(date -u): Subsampling not required for output directory $outdir" >> {log:q}
+            exit 0
         fi
 
         # Create output directory if it doesn't exist
@@ -326,8 +324,7 @@ rule subsample:
         cp -a "$outdir" {params.sync_dir:q} 2>> {log:q}
 
         echo "$(date -u): Finished subsampling for cruise {wildcards.cruise}" >> {log:q}
-        # Timestamp in status file indicates last subsampling run.
-        date -u > {output.status:q}
+        touch {output.status:q}
         """
 
 rule seaflog:
