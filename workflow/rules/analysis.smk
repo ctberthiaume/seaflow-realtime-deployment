@@ -221,6 +221,7 @@ rule subsample:
             echo "$(date -u): Subsampling required for output directory $outdir" >> {log:q}
         else
             echo "$(date -u): Subsampling not required for output directory $outdir" >> {log:q}
+            touch {output.status:q}
             exit 0
         fi
 
