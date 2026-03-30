@@ -1,0 +1,70 @@
+---
+# tasks file for nomad
+
+- name: Install nomad
+  become: true
+  apt:
+    name:
+      - "nomad={{ nomad_apt_version }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 1800
+  when: not disable_apt_tasks
+
+- name: Install CNI plugins
+  include_role:
+    name: cni
+
+- name: Create nomad directories
+  become: true
+  file:
+    path: "{{ item }}"
+    owner: nomad
+    group: nomad
+    state: directory
+  loop:
+    - "/var/log/nomad/"
+    - "{{ nomad_data }}/data/"
+
+- name: Override default config files
+  become: true
+  template:
+    src: nomad.hcl.j2
+    dest: "/etc/nomad.d/nomad.hcl"
+    backup: true
+    owner: nomad
+    group: nomad
+    mode: 0644
+  notify:
+    - Restart nomad
+
+- name: Override default systemd service file
+  become: true
+  copy:
+    src: "nomad.service"
+    dest: "/usr/lib/systemd/system/"
+    backup: true
+    owner: root
+    group: root
+    mode: 0644
+  notify:
+    - Reload systemd
+    - Restart nomad
+
+- name: Start nomad
+  become: true
+  systemd:
+    name: nomad
+    state: started
+    enabled: true
+
+- name: Get nomad version
+  command: nomad -version
+  register: version_result
+  check_mode: no
+  changed_when: False
+
+- name: Confirm nomad can be run
+  assert:
+    that:
+      - "'Nomad' in version_result.stdout"

@@ -1,0 +1,11 @@
+---
+# defaults file for rclone
+
+rclone_name: rclone
+rclone_checksum: sha256:00a1d8cb85552b7b07bb0416559b2e78fcf9c6926662a52682d81b5f20c90535
+rclone_version: v1.73.2
+rclone_version_success_string: "{{ rclone_version }}"
+rclone_version_cmd: rclone version
+rclone_url: "https://downloads.rclone.org/{{ rclone_version }}/rclone-{{ rclone_version }}-linux-amd64.zip"
+rclone_downloaded_file: "rclone-{{ rclone_version }}-linux-amd64.zip"
+rclone_extracted_path: "rclone-{{ rclone_version }}-linux-amd64/{{ rclone_name }}"

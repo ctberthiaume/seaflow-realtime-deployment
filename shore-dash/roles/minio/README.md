@@ -1,0 +1,4 @@
+minio
+=========
+
+Install minio.

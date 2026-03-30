@@ -1,0 +1,11 @@
+---
+all:
+  hosts:
+    testbed:
+      ansible_user: ubuntu
+      ansible_host: testbed
+      public_interface: enp1s0
+      jobs_data: /jobs_data
+      realtime_user: ubuntu
+      ansible_python_interpreter: auto_silent
+      disable_apt_tasks: false

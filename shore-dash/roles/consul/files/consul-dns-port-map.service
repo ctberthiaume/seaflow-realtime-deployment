@@ -1,0 +1,8 @@
+[Unit]
+Description="Map DNS port 53 HashiCorp Consul"
+
+[Service]
+ExecStart=/bin/sh -c 'consul-dns-port-map'
+
+[Install]
+WantedBy=network-pre.target

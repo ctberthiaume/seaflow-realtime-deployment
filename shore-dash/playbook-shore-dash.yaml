@@ -1,0 +1,163 @@
+- name: Sync time
+  hosts: all
+  become: yes
+  tasks:
+  - name: Restart systemd-timesyncd service
+    ansible.builtin.systemd:
+      name: systemd-timesyncd
+      state: restarted
+  tags: sync-time
+
+- hosts: all
+  tasks:
+    - debug:
+        msg: " disable_apt_tasks == {{ disable_apt_tasks }}"
+      when: disable_apt_tasks
+
+- name: Install apt packages
+  hosts: all
+  become: true
+  become_method: sudo
+  tasks:
+    - name: "Install apt packages"
+      apt:
+        state: present
+        name:
+          - apt-transport-https
+          - autofs
+          - bmon
+          - build-essential
+          - ca-certificates
+          - curl
+          - debconf-utils
+          - fio
+          - git
+          - gnupg-agent
+          - htop
+          - hwloc
+          - inotify-tools
+          - iotop
+          - jq
+          - lm-sensors
+          - net-tools
+          - nmap
+          - parallel
+          - pigz
+          - python3-pip
+          - python3-venv
+          - rsync
+          - screen
+          - software-properties-common
+          - sqlite3
+          - sshpass
+          - tree
+          - vim
+          - webhook
+          - wget
+          - zip
+        update_cache: true
+        cache_valid_time: 1800
+      when: not disable_apt_tasks
+
+- name: Install PostgreSQL client
+  hosts: all
+  become: true
+  become_method: sudo
+  tasks:
+    - name: Install required dependencies
+      ansible.builtin.apt:
+        name:
+          - curl
+          - ca-certificates
+        state: present
+        update_cache: yes
+
+    - name: Create PostgreSQL common directory
+      ansible.builtin.file:
+        path: /usr/share/postgresql-common/pgdg
+        state: directory
+        mode: '0755'
+
+    - name: Download PostgreSQL signing key
+      ansible.builtin.get_url:
+        url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+        dest: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+        mode: '0644'
+
+    - name: Add PostgreSQL APT repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+        state: present
+        filename: pgdg
+
+    - name: Install postgresql-client-18
+      ansible.builtin.apt:
+        name: postgresql-client-18
+        state: present
+        update_cache: yes
+
+- name: Deploy roles
+  hosts: all
+  become: true
+  become_method: sudo
+  roles:
+    - tsdata
+    - seaflowpy
+    - popcycle
+    - ingest
+    - ingestwebhook
+    - caddy
+    - hashicorp-apt-repo  # must run before nomad and consul roles
+    - consul
+    - nomad
+    - grafana
+    - timescaledb
+    - minio
+    - mc
+    - rclone
+    - hashicorp-realtime-shore
+  tags: deploy-roles
+
+- name: Deploy rclone client config
+  hosts: all
+  become: true
+  become_method: sudo
+  tasks:
+    - name: Create rclone client config directory
+      ansible.builtin.file:
+        path: ~/.config/rclone/
+        state: directory
+        mode: '0700'
+        group: "{{ ansible_user }}"
+        owner: "{{ ansible_user }}"
+    - name: Deploy rclone client config
+      ansible.builtin.copy:
+        content: |
+          [minio]
+          type = s3
+          provider = Minio
+          access_key_id = {{ vault_consul_kv['minio/MINIO_ROOT_USER'] }}
+          secret_access_key = {{ vault_consul_kv['minio/MINIO_ROOT_PASSWORD'] }}
+          region = us-east-1
+          endpoint = http://127.0.0.1:9000
+        dest: /home/{{ ansible_user }}/.config/rclone/rclone.conf
+        mode: '0600'
+        group: "{{ ansible_user }}"
+        owner: "{{ ansible_user }}"
+  tags: deploy-rclone-config
+
+- name: Deploy consul KV
+  hosts: all
+  tasks:
+    - name: Make sure jq is available
+      apt:
+        state: present
+        name:
+          - jq
+        update_cache: true
+        cache_valid_time: 1800
+    - name: Deploy consul KV
+      shell: jq '[ .[] | .value = (.value | @base64) ]' | consul kv import -
+      args:
+        stdin: "{{ lookup('template', consul_kv_template_path) }}"
+  tags: deploy-consul-kv

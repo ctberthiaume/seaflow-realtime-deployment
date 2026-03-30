@@ -1,0 +1,19 @@
+---
+# tasks file for timescaledb
+
+- include_role:
+    name: docker
+
+- name: "timescaledb : Pull docker image"
+  community.docker.docker_image:
+    name: "{{ timescaledb_image }}:{{ timescaledb_version }}"
+    source: pull
+
+# Image can't be tagged as 'latest' for nomad local docker images so we'll use
+# 'local' instead
+- name: "timescaledb : Tag image as local"
+  community.docker.docker_image:
+    name: "{{ timescaledb_image }}:{{ timescaledb_version }}"
+    repository: "{{ timescaledb_image }}:local"  # make sure this matches the tag used in nomad job files
+    force_tag: true
+    source: local

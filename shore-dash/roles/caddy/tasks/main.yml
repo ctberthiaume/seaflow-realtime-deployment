@@ -1,0 +1,35 @@
+---
+
+- include_role:
+    name: docker
+
+- name: "Pull caddy docker image"
+  community.docker.docker_image:
+    name: "{{ caddy_image }}:{{ caddy_version }}-alpine"
+    source: pull
+
+# Image can't be tagged as 'latest' for nomad local docker images so we'll use
+# 'local' instead
+- name: "Tag caddy image as local"
+  community.docker.docker_image:
+    name: "{{ caddy_image }}:{{ caddy_version }}-alpine"
+    repository: "{{ caddy_image }}:local"
+    force_tag: yes
+    source: local
+
+- name: "caddy : Get version"
+  command: "docker run --rm {{ caddy_image }}:local caddy version"
+  register: caddy_version_cmd_result
+  check_mode: no
+  changed_when: False
+
+- debug:
+    msg: "stdout={{ caddy_version_cmd_result.stdout }}"
+
+- debug:
+    msg: "stderr={{ caddy_version_cmd_result.stderr }}"
+
+- name: "caddy : Confirm version is correct"
+  assert:
+    that:
+      - caddy_version in caddy_version_cmd_result.stdout or caddy_version in caddy_version_cmd_result.stderr

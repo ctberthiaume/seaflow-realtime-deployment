@@ -1,0 +1,18 @@
+---
+download_dir: "/home/{{ ansible_user }}/ansible_downloads"
+execdl_install_dir: /usr/local/realtime_installs
+# Location on realtime machine where nomad jobs will store persistent data
+jobs_data: /jobs_data
+# Location on realtime machine where nomad jobs will store persistent data
+# that should not go on a shared volume for consistency guarantees (e.g. minio)
+# This should not point to a shared volume.
+local_jobs_data: /var/local/nomad/local_jobs_data
+# Location on realtime machine where nomad will store operation data
+nomad_data: /var/local/nomad_data
+# Where docker stores its data
+docker_data: /var/lib/docker
+# Where minio stores its data
+minio_data: /var/lib/minio
+realtime_user: ubuntu
+disable_apt_tasks: false  # set to disable all tasks that communicate with apt repos
+consul_kv_template_path: "consul_state/consul_state_shore.json.j2"

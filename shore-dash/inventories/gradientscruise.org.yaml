@@ -1,0 +1,14 @@
+---
+all:
+  hosts:
+    shore:
+      ansible_user: ubuntu
+      ansible_host: gradientscruise.org
+      public_interface: eth0
+      jobs_data: /data/jobs_data
+      docker_data: /local_data/docker_data
+      nomad_data: /local_data/nomad_data
+      minio_data: /data/minio
+      realtime_user: ubuntu
+      ansible_python_interpreter: auto_silent
+      disable_apt_tasks: false
